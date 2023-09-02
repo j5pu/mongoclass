@@ -6,6 +6,7 @@ from typing import Callable, List, Optional, Tuple, Union
 
 import mongita.database
 import mongita.results
+import pymongo.collection
 import pymongo.database
 import pymongo.results
 from mongita import MongitaClientDisk, MongitaClientMemory
@@ -186,6 +187,10 @@ def client_constructor(engine: str, *args, test: bool = False, **kwargs):
                         """Returns True if this object is inserted"""
                         return bool(this.one())
 
+
+                    def collection(this) -> pymongo.collection.Collection:
+                        """returns collection object"""
+                        return this._mongodb_db[this._mongodb_collection]
 
                     def insert(
                         this, *args, **kwargs
