@@ -189,9 +189,7 @@ def client_constructor(engine: str, *args, test: bool = False, **kwargs):
 
                     def insert(
                         this, *args, **kwargs
-                    ) -> Union[
-                        pymongo.results.InsertOneResult, mongita.results.InsertOneResult
-                    ]:
+                    ) -> dict:
                         """
                         Insert this mongoclass as a document in the collection.
 
@@ -212,7 +210,7 @@ def client_constructor(engine: str, *args, test: bool = False, **kwargs):
                                 this.as_json(), *args, **kwargs
                             )
                             this._mongodb_id = res.inserted_id
-                            return res
+                            return this._mongodb_db[this._mongodb_collection].find_one({"_id": this._mongodb_id})
 
 
                     def update(

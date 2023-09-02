@@ -29,9 +29,9 @@ class TestInsert(unittest.TestCase):
         insert_res = john.insert()
         self.assertIsInstance(
             insert_res,
-            (pymongo.results.InsertOneResult, mongita.results.InsertOneResult),
+            dict,
         )
-        self.assertEqual(john._mongodb_id, insert_res.inserted_id)
+        self.assertEqual(john._mongodb_id, insert_res["_id"])
 
         # Insert Kenneth
         kenneth = User("Kenneth Richards", "kennethrichards@gmail.com", 7421)
@@ -40,9 +40,9 @@ class TestInsert(unittest.TestCase):
         insert_res = kenneth.insert()
         self.assertIsInstance(
             insert_res,
-            (pymongo.results.InsertOneResult, mongita.results.InsertOneResult),
+            dict,
         )
-        self.assertEqual(kenneth._mongodb_id, insert_res.inserted_id)
+        self.assertEqual(kenneth._mongodb_id, insert_res["_id"])
 
         # Insert Tony
         tony = User("Tony Stark", "tonystark@gmail.com", 8080)
@@ -51,9 +51,9 @@ class TestInsert(unittest.TestCase):
         insert_res = tony.insert()
         self.assertIsInstance(
             insert_res,
-            (pymongo.results.InsertOneResult, mongita.results.InsertOneResult),
+            dict,
         )
-        self.assertEqual(tony._mongodb_id, insert_res.inserted_id)
+        self.assertEqual(tony._mongodb_id, insert_res["_id"])
 
         # Make sure the _id and other stuff are not in the as_json
         as_json = tony.as_json()
@@ -71,7 +71,7 @@ class TestInsert(unittest.TestCase):
         Profile = utils.create_class("user", client, "profile", utils.DATABASES[2])
         joe = Profile("Joe Dart", "joedart@gmail.com", 1500)
         insert_result = joe.insert()
-        self.assertEqual(insert_result.inserted_id, joe._mongodb_id)
+        self.assertEqual(insert_result["_id"], joe._mongodb_id)
 
     def test_auto_insert(self) -> None:
         client = utils.create_client()
@@ -180,9 +180,9 @@ class TestInsert(unittest.TestCase):
         john = User("John Howards", "john@gmail.com", 123)
         result, _ = john.save()
         self.assertIsInstance(
-            result, (pymongo.results.InsertOneResult, mongita.results.InsertOneResult)
+            result, dict
         )
-        self.assertEqual(result.inserted_id, john._mongodb_id)
+        self.assertEqual(result["_id"], john._mongodb_id)
 
 
 if __name__ == "__main__":

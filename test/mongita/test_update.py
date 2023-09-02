@@ -22,7 +22,7 @@ class TestUpdate(unittest.TestCase):
         home = Position(72, 63, 12)
         self.assertEqual(home.x, 72)
         insert_result = home.insert()
-        self.assertEqual(insert_result.inserted_id, home._mongodb_id)
+        self.assertEqual(insert_result["_id"], home._mongodb_id)
 
         # Retrieve the position from the database
         self.assertEqual(client.find_class("position", {"z": 12}), home)

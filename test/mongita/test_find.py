@@ -125,7 +125,7 @@ class TestFind(unittest.TestCase):
         metadata = Metadata(NameInformation("Trevor", "Warts"))
         john = User("trevor@gmail.com", metadata)
         insert_result = john.insert()
-        self.assertEqual(insert_result.inserted_id, john._mongodb_id)
+        self.assertEqual(insert_result["_id"], john._mongodb_id)
 
         # Find it
         query = client.find_class("user", {"email": "trevor@gmail.com"})
@@ -161,7 +161,7 @@ class TestFind(unittest.TestCase):
         metadata = Metadata(NameInformation("Joey", "Dosik"), family_members)
         user = User("chrisrocks@gmail.com", metadata)
         insert_result = user.insert()
-        self.assertEqual(insert_result.inserted_id, user._mongodb_id)
+        self.assertEqual(insert_result["_id"], user._mongodb_id)
 
         query = client.find_class("user", {"email": "chrisrocks@gmail.com"})
         self.assertEqual(query, user)
@@ -180,7 +180,7 @@ class TestFind(unittest.TestCase):
             [Person("Jared Leto"), Person("I'm going to morb")],
         )
         insert_result = morbius.insert()
-        self.assertEqual(insert_result.inserted_id, morbius._mongodb_id)
+        self.assertEqual(insert_result["_id"], morbius._mongodb_id)
 
         query = client.find_class("person", {"name": "I watch morbius on repeat"})
         self.assertEqual(query, morbius)
