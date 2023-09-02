@@ -181,13 +181,13 @@ def client_constructor(engine: str, *args, test: bool = False, **kwargs):
                         """
                         Find is this object is inserted
                         """
-                        return this._mongodb_db[this._mongodb_collection].find_one(this.as_json())
+                        return this.collection.find_one(this.as_json())
 
                     def exists(this) -> bool:
                         """Returns True if this object is inserted"""
                         return bool(this.one())
 
-
+                    @property
                     def collection(this) -> pymongo.collection.Collection:
                         """returns collection object"""
                         return this._mongodb_db[this._mongodb_collection]
