@@ -15,9 +15,10 @@ coverage:
 	@coverage run -m pytest
 
 clean:
-	@rm -rf build dist
+	@rm -rf build dist mongita **/*.egg-info *.egg-info .mypy_cache .pytest_cache .tox setup.cfg setup.py .vscode \
+		pyrightconfig.json
 
-publish: tests
+commit: tests
 	@git add .
 	@git commit --quiet -a -m "$${msg:-auto}" || true
 	@git push --quiet
