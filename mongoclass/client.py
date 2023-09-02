@@ -143,7 +143,7 @@ def client_constructor(engine: str, *args, **kwargs):
                 The database to use. Defaults to the default database.
             `insert_on_init` : bool
                 Whether to automatically insert a mongoclass into mongodb whenever a mongoclass instance is created.
-                Defaults to False. This is the equivalent of passing `_insert=True` every time you create a mongoclass instance.
+                Defaults to True. This is the equivalent of passing `_insert=True` every time you create a mongoclass instance.
                 This can also be overwritten by setting `_insert=False`
             `nested` : bool
                 Whether this mongoclass has other mongoclasses inside it. Nesting is not automatically determined for performance purposes. Defaults to False.
@@ -173,6 +173,17 @@ def client_constructor(engine: str, *args, **kwargs):
                         if _insert:
                             this.insert()
 
+                    def one(this) -> Optional[dict]:
+                        """
+                        Find is this object is inserted
+                        """
+                        return this._mongodb_db[this._mongodb_collection].find_one(this.as_json())
+
+                    def exists(this) -> bool:
+                        """Returns True if this object is inserted"""
+                        return bool(this.one())
+
+
                     def insert(
                         this, *args, **kwargs
                     ) -> Union[
@@ -190,12 +201,16 @@ def client_constructor(engine: str, *args, **kwargs):
                         -------
                         `InsertOneResult`
                         """
+                        if query := this._mongodb_db[this._mongodb_collection].find_one(this.as_json()):
+                            this._mongodb_id = query["_id"]
+                            return query
+                        else:
+                            res = this._mongodb_db[this._mongodb_collection].insert_one(
+                                this.as_json(), *args, **kwargs
+                            )
+                            this._mongodb_id = res.inserted_id
+                            return res
 
-                        res = this._mongodb_db[this._mongodb_collection].insert_one(
-                            this.as_json(), *args, **kwargs
-                        )
-                        this._mongodb_id = res.inserted_id
-                        return res
 
                     def update(
                         this, operation: dict, *args, **kwargs
@@ -632,3 +647,10 @@ def client_constructor(engine: str, *args, **kwargs):
 
 def MongoClassClient(*args, **kwargs):
     return client_constructor("pymongo", *args, **kwargs)
+
+
+client = MongoClassClient("mongoclass")
+@client.mongoclass()
+@dataclasses.dataclass
+class MongoClassTest:
+    test: int

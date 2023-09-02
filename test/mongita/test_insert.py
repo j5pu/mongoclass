@@ -89,16 +89,16 @@ class TestInsert(unittest.TestCase):
         insert_result = client.insert_classes(pos)
         self.assertIsInstance(
             insert_result,
-            (pymongo.results.InsertOneResult, mongita.results.InsertOneResult),
+            dict,
         )
-        self.assertEqual(insert_result.inserted_id, pos._mongodb_id)
+        self.assertEqual(insert_result["_id"], pos._mongodb_id)
 
         # Insert many but with insert_one=True
         pos = [Position(1, 2, 3), Position(4, 5, 6)]
         insert_result = client.insert_classes(pos, insert_one=True)
         self.assertIsInstance(insert_result, list)
         for x, y in zip(pos, insert_result):
-            self.assertEqual(x._mongodb_id, y.inserted_id)
+            self.assertEqual(x._mongodb_id, y["_id"])
 
         # Insert many but with insert_one=False
         pos = [Position(1, 2, 3), Position(4, 5, 6)]
@@ -119,7 +119,8 @@ class TestInsert(unittest.TestCase):
         i1 = p1.insert()
         i2 = p2.insert()
 
-        self.assertNotEqual(i1.inserted_id, i2.inserted_id)
+        self.assertEqual(p1._mongodb_id, p2._mongodb_id)
+        self.assertEqual(i1, i2)
 
     def test_insert_auto_by_default(self) -> None:
         client = utils.create_client(engine="mongita_disk")

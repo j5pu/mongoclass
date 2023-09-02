@@ -52,9 +52,12 @@ class TestUpdate(unittest.TestCase):
         update_result, _ = p1.update({"$set": {"x": 10}})
         self.assertEqual(update_result.modified_count, 1)
 
-        query = client.find_class("position", {"x": 1, "y": 2, "z": 3})
+        query = client.find_class("position", {"x": 10, "y": 2, "z": 3})
         self.assertTrue(query)
         self.assertEqual(query._mongodb_id, p2._mongodb_id)
+
+        query = client.find_class("position", {"x": 1, "y": 2, "z": 3})
+        self.assertIsNone(query)
 
     def test_update_save(self) -> None:
         client = utils.create_client(engine="mongita_disk")

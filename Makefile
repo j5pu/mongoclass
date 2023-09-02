@@ -22,7 +22,8 @@ commit: tests
 	@git push --quiet
 
 publish: commit
-	@source venv/bin/activate && python3 -m twine upload dist/*
+	@source venv/bin/activate && python3 -m twine -u __token__ upload dist/*
+	@make clean
 
 requirements:
 	@source venv/bin/activate && pip3 install --upgrade pip pip-tools && \

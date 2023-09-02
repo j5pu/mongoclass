@@ -30,7 +30,7 @@ class TestDelete(unittest.TestCase):
         self.assertEqual(delete_result.deleted_count, 1)
 
         count = client.default_database.position.count_documents({"x": 50})
-        self.assertEqual(count, 1)
+        self.assertEqual(count, 0)
 
 
 if __name__ == "__main__":
