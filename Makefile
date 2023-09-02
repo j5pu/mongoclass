@@ -2,15 +2,11 @@
 
 SHELL := $(shell bash -c 'command -v bash')
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-PYTHONPATH := $(ROOT_DIR)/src
+PYTHONPATH := $(ROOT_DIR)
 export PYTHONPATH
-
-echo:
-	echo $(PYTHONPATH)
 
 build: clean
 	@source venv/bin/activate && python3 -m build --wheel
-
 
 clean:
 	@rm -rf build dist mongita **/*.egg-info *.egg-info .mypy_cache .pytest_cache .tox setup.cfg setup.py .vscode \
@@ -32,3 +28,12 @@ requirements:
 
 tests: clean build
 	@source venv/bin/activate && python -m unittest
+
+tox:
+	@eval "$$(pyenv init --path)"; source venv/bin/activate && tox
+
+pyenv:
+	@pyenv install 3.9
+	@pyenv install 3.10
+	@pyenv install 3.11
+	@pyenv install 3.12-dev
