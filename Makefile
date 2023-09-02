@@ -11,8 +11,6 @@ echo:
 build: clean
 	@source venv/bin/activate && python3 -m build --wheel
 
-coverage:
-	@coverage run -m pytest
 
 clean:
 	@rm -rf build dist mongita **/*.egg-info *.egg-info .mypy_cache .pytest_cache .tox setup.cfg setup.py .vscode \
@@ -23,6 +21,9 @@ commit: tests
 	@git commit --quiet -a -m "$${msg:-auto}" || true
 	@git push --quiet
 
+publish: commit
+	@source venv/bin/activate && python3 -m twine upload dist/*
+
 requirements:
 	@source venv/bin/activate && pip3 install --upgrade pip pip-tools && \
 		pip-compile --all-extras --no-annotate --quiet -o /tmp/requirements.txt pyproject.toml && \
@@ -30,11 +31,3 @@ requirements:
 
 tests: clean build
 	@source venv/bin/activate && python -m unittest
-
-tox:
-	@eval "$$(pyenv init --path)"; tox
-
-pyenv:
-	@pyenv install 3.10-dev
-	@pyenv install 3.11-dev
-	@pyenv install 3.12-dev
