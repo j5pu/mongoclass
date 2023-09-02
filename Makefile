@@ -22,7 +22,7 @@ commit: tests
 	@git push --quiet
 
 publish: commit
-	@source venv/bin/activate && python3 -m twine -u __token__ upload dist/*
+	@source venv/bin/activate && twine upload -u __token__ dist/*
 	@make clean
 
 requirements:
