@@ -6,7 +6,7 @@ PYTHONPATH := $(ROOT_DIR)
 export PYTHONPATH
 
 build: clean
-	@source venv/bin/activate && python3 -m build
+	@source venv/bin/activate && python3 -m build --wheel
 
 clean:
 	@rm -rf build dist mongita **/*.egg-info *.egg-info .mypy_cache .pytest_cache .tox setup.cfg setup.py .vscode \
