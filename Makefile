@@ -28,7 +28,7 @@ requirements:
 		pip-compile --all-extras --no-annotate --quiet -o /tmp/requirements.txt pyproject.toml && \
 		pip3 install -r /tmp/requirements.txt
 
-tests:
+tests: clean build
 	@source venv/bin/activate && python -m unittest
 
 tox:
