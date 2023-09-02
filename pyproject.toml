@@ -1,6 +1,6 @@
 [project]
 name = "python-mongoclass"
-version = "0.1.8"
+version = "0.1.9"
 description = "mongoclass"
 license = { text = "MIT" }
 requires-python = ">=3.9"
@@ -22,6 +22,7 @@ dev = [
 ]
 
 tests = [
+    "coverage[toml] >=6, <7",
     "tox >=4.6.4, <5",
 ]
 
@@ -29,8 +30,16 @@ tests = [
 exclude = ["tests"]
 
 [build-system]
-requires = ['setuptools', 'wheel']
+requires = ['setuptools', 'setuptools_scm>=6.2', 'wheel']
 build-backend = 'setuptools.build_meta'
+
+[tool.coverage.report]
+skip_empty = true
+[tool.coverage.html]
+directory = "coverage_html_report"
+[tool.coverage.run]
+branch = true
+source = ["mongoclass"]
 
 [tool.tox]
 legacy_tox_ini = """

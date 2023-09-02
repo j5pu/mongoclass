@@ -10,12 +10,15 @@ build: clean
 
 clean:
 	@rm -rf build dist mongita **/*.egg-info *.egg-info .mypy_cache .pytest_cache .tox setup.cfg setup.py .vscode \
-		pyrightconfig.json
+		pyrightconfig.json mongita .coverage
 
 commit: tests tox
 	@git add .
 	@git commit --quiet -a -m "$${msg:-auto}" || true
 	@git push --quiet
+
+coverage:
+	@source venv/bin/activate && coverage run -m unittest && coverage report -m
 
 publish: commit
 	@source venv/bin/activate && twine upload -u __token__ dist/*

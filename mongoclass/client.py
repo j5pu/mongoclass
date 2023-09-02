@@ -1,6 +1,7 @@
 import copy
 import dataclasses
 import functools
+import os
 from typing import Callable, List, Optional, Tuple, Union
 
 import mongita.database
@@ -13,7 +14,7 @@ from pymongo import MongoClient
 from .cursor import Cursor
 
 
-def client_constructor(engine: str, *args, **kwargs):
+def client_constructor(engine: str, *args, test: bool = False, **kwargs):
     if engine == "pymongo":
         Engine = MongoClient
     elif engine == "mongita_disk":
@@ -37,6 +38,8 @@ def client_constructor(engine: str, *args, **kwargs):
         def __init__(self, default_db_name: str = "main", *args, **kwargs) -> None:
             super().__init__(*args, **kwargs)
             self.mapping = {}
+            if test or os.environ.get("MONGO_TEST"):
+                default_db_name = f"{default_db_name}-test"
             self.default_database: Union[
                 pymongo.database.Database, mongita.database.Database
             ] = self[default_db_name]
@@ -645,12 +648,9 @@ def client_constructor(engine: str, *args, **kwargs):
     return MongoClassClient(*args, **kwargs)
 
 
-def MongoClassClient(*args, **kwargs):
-    return client_constructor("pymongo", *args, **kwargs)
+def MongoClassClient(*args, test: bool = False, **kwargs):
+    return client_constructor("pymongo", *args, test=test, **kwargs)
 
 
-client = MongoClassClient("mongoclass")
-@client.mongoclass()
-@dataclasses.dataclass
-class MongoClassTest:
-    test: int
+mongo = MongoClassClient(default_db_name="pdf", test=True)
+
