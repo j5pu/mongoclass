@@ -2,9 +2,15 @@ import copy
 import dataclasses
 import functools
 import inspect
-import os
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Any
+from typing import Callable
+from typing import List
+from typing import Mapping
+from typing import MutableMapping
+from typing import Optional
 from typing import Protocol
+from typing import Tuple
+from typing import Union
 
 import mongita.database
 import mongita.results
@@ -12,8 +18,10 @@ import pymongo.collection
 import pymongo.database
 import pymongo.results
 from bson import ObjectId
-from mongita import MongitaClientDisk, MongitaClientMemory
+from mongita import MongitaClientDisk
+from mongita import MongitaClientMemory
 from pymongo import MongoClient
+from pymongo.command_cursor import CommandCursor
 
 from .cursor import Cursor
 
@@ -29,7 +37,6 @@ def client_constructor(engine: str, *args, **kwargs):
         raise ValueError(f"Invalid engine '{engine}'")
 
     class MongoClassClientClass(Engine):  # type: ignore
-
         """
         Parameters
         ----------
@@ -54,15 +61,15 @@ def client_constructor(engine: str, *args, **kwargs):
             self._engine_used = engine
 
         def __choose_database(
-            self,
-            database: Optional[
-                Union[str, pymongo.database.Database, mongita.database.Database]
-            ] = None,
+                self,
+                database: Optional[
+                    Union[str, pymongo.database.Database, mongita.database.Database]
+                ] = None,
         ) -> Union[pymongo.database.Database, mongita.database.Database]:
             if database is None:
                 return self.default_database
             if isinstance(
-                database, (pymongo.database.Database, mongita.database.Database)
+                    database, (pymongo.database.Database, mongita.database.Database)
             ):
                 return database
             return self[database]
@@ -70,10 +77,11 @@ def client_constructor(engine: str, *args, **kwargs):
         choose_database = __choose_database
 
         def get_db(
-            self, database: str
+                self, database: str
         ) -> Union[pymongo.database.Database, mongita.database.Database]:
             """
-            Get a database. Equivalent to `client["database"]`. This method exists simply because type hinting seems to be broken, nothing more.
+            Get a database. Equivalent to `client["database"]`. This method exists simply because type hinting seems
+            to be broken, nothing more.
 
             Parameters
             ----------
@@ -89,7 +97,7 @@ def client_constructor(engine: str, *args, **kwargs):
             return self[database]
 
         def map_document(
-            self, data: dict, collection: str, database: str, force_nested: bool = False
+                self, data: dict, collection: str, database: str, force_nested: bool = False
         ) -> object:
             """
             Map a raw document into a mongoclass.
@@ -103,7 +111,8 @@ def client_constructor(engine: str, *args, **kwargs):
             `database` : str
                 The database the raw document belongs to.
             `force_nested` : bool
-                Forcefully tell mongoclass that this document is a nested document and it contains other mongoclasses inside it. Defaults to False. Usually this parameter is only set in a recursive manner.
+                Forcefully tell mongoclass that this document is a nested document and it contains other mongoclasses
+                inside it. Defaults to False. Usually this parameter is only set in a recursive manner.
             """
 
             cls = self.mapping[database][collection]
@@ -134,11 +143,11 @@ def client_constructor(engine: str, *args, **kwargs):
             return cls["constructor"](**data)
 
         def mongoclass(
-            self,
-            collection: Optional[str] = None,
-            database: Optional[Union[str, pymongo.database.Database]] = None,
-            insert_on_init: bool = False,
-            nested: bool = False,
+                self,
+                collection: Optional[str] = None,
+                database: Optional[Union[str, pymongo.database.Database]] = None,
+                insert_on_init: bool = False,
+                nested: bool = False,
         ) -> Callable:
             """
             A decorator used to map a dataclass onto a collection.
@@ -152,10 +161,12 @@ def client_constructor(engine: str, *args, **kwargs):
                 The database to use. Defaults to the default database.
             `insert_on_init` : bool
                 Whether to automatically insert a mongoclass into mongodb whenever a mongoclass instance is created.
-                Defaults to True. This is the equivalent of passing `_insert=True` every time you create a mongoclass instance.
+                Defaults to True. This is the equivalent of passing `_insert=True` every time you create a mongoclass
+                instance.
                 This can also be overwritten by setting `_insert=False`
             `nested` : bool
-                Whether this mongoclass has other mongoclasses inside it. Nesting is not automatically determined for performance purposes. Defaults to False.
+                Whether this mongoclass has other mongoclasses inside it. Nesting is not automatically determined for
+                performance purposes. Defaults to False.
 
             """
             db = self.__choose_database(database)
@@ -170,7 +181,7 @@ def client_constructor(engine: str, *args, **kwargs):
 
                     # pylint:disable=no-self-argument
                     def __init__(this, *args, **kwargs) -> None:
-                        # MongodDB Attributes
+                        # MongoDB Attributes
                         this._mongodb_collection = collection_name
                         this._mongodb_db = db
                         this._mongodb_id = kwargs.pop("_mongodb_id", None)
@@ -182,31 +193,170 @@ def client_constructor(engine: str, *args, **kwargs):
                         if _insert:
                             this.insert()
 
-                    def rm(this) -> Union[
+                    @property
+                    def collection(self) -> pymongo.collection.Collection:
+                        """returns collection object"""
+                        return self._mongodb_db[self._mongodb_collection]
+
+                    def createIndex(self, field: str) -> str:
+                        """creates an unique index
+
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user.createIndex("email")  # doctest: +SKIP
+                            'email_1
+
+                        Args:
+                            field (str): the field to create index
+
+                        Returns:
+                            {field}_1
+                        """
+                        return self.collection.create_index(field, unique=True)
+
+                    def distinct(self, field: str, query: dict = None) -> List[Union[str, int, dict, list]]:
+                        """
+                        returns distinct values
+
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user.distinct("email")  # doctest: +SKIP
+                            ['john@gmail.com']
+
+                        Args:
+                            field (str): the field to get distinct values
+                            query (dict): the query to filter
+                        """
+                        return self.collection.distinct(field, query)
+
+                    def find(self, *args, **kwargs) -> Cursor:
+                        """
+                        returns find
+
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user.find({}, {"email": 1, "_id": 0})  # doctest: +SKIP
+                            <pymongo.cursor.Cursor object at 0x1102d7cd0>
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> list(user.find({}, {"email": 1, "_id": 0}))  # doctest: +SKIP
+                            [{'email': 'john@gmail.com'}]
+
+                        Args:
+                            *args:
+                            **kwargs:
+                        """
+                        return self.collection.find(*args, **kwargs)
+
+                    def getIndexes(self) -> CommandCursor[MutableMapping[str, Any]]:
+                        """
+                        returns indexes
+
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user.getIndexes()  # doctest: +SKIP
+                            [SON([('v', 2), ('key', SON([('_id', 1)])), ('name', '_id_')]),\
+ SON([('v', 2), ('key', SON([('email', 1)])), ('name', 'email_1'), ('unique', True)])]
+
+                        """
+                        return self.collection.list_indexes()
+
+                    def has(self) -> bool:
+                        """
+                        Returns True if this object is inserted
+
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user = User("John Howard") # doctest: +SKIP
+                            >>> user.has()  # doctest: +SKIP
+                            False
+                            >>> user.insert()  # doctest: +SKIP
+                            >>> user.has()  # doctest: +SKIP
+                            True
+                        """
+                        return bool(self.one())
+
+                    @property
+                    def id(self) -> ObjectId:
+                        """
+                        Returns the ObjectId
+
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user = User("John Howard") # doctest: +SKIP
+                            >>> user.id  # doctest: +SKIP
+                            >>> user.insert()  # doctest: +SKIP
+                            >>> user.id  # doctest: +SKIP
+                            '64f48d7f12247320a50db63b'
+
+
+                        """
+                        return self._mongodb_id
+
+                    @property
+                    def indexValue(self) -> Union[int, str, dict, list]:
+                        """
+                        Returns the unique index value of the instance
+
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user.indexValue  # doctest: +SKIP
+                            "john@gmail.com"
+
+                        """
+                        if one := self.one():
+                            return one.get(self.indexName)
+
+                    @property
+                    def indexName(self) -> Optional[str]:
+                        """
+                        Returns the unique index name
+
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user.indexName  # doctest: +SKIP
+                            "email"
+
+                        """
+                        for i in self.getIndexes():
+                            if i.get("unique"):
+                                return list(i.get("key").keys())[0]
+
+                    def one(self) -> Optional[dict]:
+                        """
+                        Find is this object is inserted
+
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user = User("John Howard", "john@gmail.com", 8771, "PH") # doctest: +SKIP
+                            >>> user.one()  # doctest: +SKIP
+                            >>> user.insert()  # doctest: +SKIP
+                            >>> user.one()  # doctest: +SKIP
+                            {'_id': ObjectId('64f4873f27418cd06ed11833'), 'name': 'John Howard',\
+ 'email': 'john@gmail.com', 'phone': 8771, 'country': 'PH'}
+
+                        """
+                        return self.collection.find_one(self.as_json())
+
+                    def rm(self) -> Union[
                         pymongo.results.DeleteResult, mongita.results.DeleteResult
                     ]:
                         """
                         Delete instance/one
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user = User("John Howard", "john@gmail.com", 8771, "PH") # doctest: +SKIP
+                            >>> user.one()  # doctest: +SKIP
+                            >>> user.insert()  # doctest: +SKIP
+                            >>> rv = user.rm()  # doctest: +SKIP
+                            >>> rv  # doctest: +SKIP
+                            <pymongo.results.DeleteResult object at 0x110208580>
+                            >>> rv.deleted_count
+                            1
                         """
-                        return this.collection.delete_one({"_id": this._mongodb_id})
-
-                    def one(this) -> Optional[dict]:
-                        """
-                        Find is this object is inserted
-                        """
-                        return this.collection.find_one(this.as_json())
-
-                    def has(this) -> bool:
-                        """Returns True if this object is inserted"""
-                        return bool(this.one())
-
-                    @property
-                    def collection(this) -> pymongo.collection.Collection:
-                        """returns collection object"""
-                        return this._mongodb_db[this._mongodb_collection]
+                        return self.collection.delete_one({"_id": self._mongodb_id})
 
                     def insert(
-                        this, *args, **kwargs
+                            this, *args, **kwargs
                     ) -> dict:
                         """
                         Insert this mongoclass as a document in the collection.
@@ -230,9 +380,8 @@ def client_constructor(engine: str, *args, **kwargs):
                             this._mongodb_id = res.inserted_id
                             return this._mongodb_db[this._mongodb_collection].find_one({"_id": this._mongodb_id})
 
-
                     def update(
-                        this, operation: dict, *args, **kwargs
+                            this, operation: dict, *args, **kwargs
                     ) -> Tuple[
                         Union[
                             pymongo.results.UpdateResult, mongita.results.UpdateResult
@@ -242,12 +391,19 @@ def client_constructor(engine: str, *args, **kwargs):
                         """
                         Update this mongoclass document in the collection.
 
-                        Parameters
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> john = User("John Dee", "johndee@gmail.com", 5821)  # doctest: +SKIP
+                            >>> john.insert()  # doctest: +SKIP
+                            >>> # Let's change john's country to UK
+                            >>> update_result, new_john = john.update( {"$set": {"country": "UK"}}, \
+                                return_new=True)  # doctest: +SKIP                        Parameters
                         ----------
                         `operation` : dict
                             The operation to be made.
                         `return_new` : bool
-                            Whether to return a brand new class containing the updated data. Defaults to False. If this is false, the same object is returned.
+                            Whether to return a brand new class containing the updated data. Defaults to False. If
+                            this is false, the same object is returned.
                         `*args, **kwargs` :
                             Other parameters to be passed onto `Collection.update_one`
 
@@ -274,7 +430,7 @@ def client_constructor(engine: str, *args, **kwargs):
                         return (res, return_value)
 
                     def save(
-                        this, *args, **kwargs
+                            this, *args, **kwargs
                     ) -> Tuple[
                         Union[
                             pymongo.results.UpdateResult,
@@ -292,10 +448,13 @@ def client_constructor(engine: str, *args, **kwargs):
                         Here's a comparison of `.save()` and `.update()` doing the same exact thing.
 
                         >>> # Using .update()
+                        >>> # noinspection PyUnresolvedReferences
                         >>> user.update({"$set": {"name": "Robert Downey"}})
                         >>>
                         >>> # Using .save()
+                        >>> # noinspection PyUnresolvedReferences
                         >>> user.name = "Rober Downey"
+                        >>> # noinspection PyUnresolvedReferences
                         >>> user.save()
 
                         Under the hood, this is just calling .update() using the set operator.
@@ -317,7 +476,7 @@ def client_constructor(engine: str, *args, **kwargs):
                         return this.update({"$set": data}, *args, **kwargs)
 
                     def delete(
-                        this, *args, **kwargs
+                            this, *args, **kwargs
                     ) -> Union[
                         pymongo.results.DeleteResult, mongita.results.DeleteResult
                     ]:
@@ -343,6 +502,11 @@ def client_constructor(engine: str, *args, **kwargs):
                         """
                         Count the number of documents in this collection.
 
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user.count_documents({})  # doctest: +SKIP
+                            1
+
                         Parameters
                         ----------
                         `*args, **kwargs` :
@@ -357,18 +521,29 @@ def client_constructor(engine: str, *args, **kwargs):
 
                     @staticmethod
                     def find_class(
-                        *args,
-                        database: Optional[
-                            Union[
-                                str,
-                                pymongo.database.Database,
-                                mongita.database.Database,
-                            ]
-                        ] = None,
-                        **kwargs,
+                            *args,
+                            database: Optional[
+                                Union[
+                                    str,
+                                    pymongo.database.Database,
+                                    mongita.database.Database,
+                                ]
+                            ] = None,
+                            **kwargs,
                     ) -> Optional[object]:
                         """
-                        Find a single document from this class and convert it onto a mongoclass that maps to the collection of the document.
+                        Find a single document from this class and convert it onto a mongoclass that maps to the
+                        collection of the document.
+
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user = User("John Howard", "john@gmail.com", 8771, "PH") # doctest: +SKIP
+                            >>> user.find_class()  # doctest: +SKIP
+                            >>> user.insert()  # doctest: +SKIP
+                            >>> user.find_class()  # doctest: +SKIP
+                            create_class.<locals>.User(name='John Howard',\
+email='john@gmail.com', phone=8771, country='PH')
+
 
                         Parameters
                         ----------
@@ -391,15 +566,15 @@ def client_constructor(engine: str, *args, **kwargs):
 
                     @staticmethod
                     def aggregate(
-                        *args,
-                        database: Optional[
-                            Union[
-                                str,
-                                pymongo.database.Database,
-                                mongita.database.Database,
-                            ]
-                        ] = None,
-                        **kwargs,
+                            *args,
+                            database: Optional[
+                                Union[
+                                    str,
+                                    pymongo.database.Database,
+                                    mongita.database.Database,
+                                ]
+                            ] = None,
+                            **kwargs,
                     ) -> Cursor:
                         db = self.choose_database(database)
                         query = db[collection_name].aggregate(*args, **kwargs)
@@ -414,18 +589,18 @@ def client_constructor(engine: str, *args, **kwargs):
 
                     @staticmethod
                     def paginate(
-                        *args,
-                        database: Optional[
-                            Union[
-                                str,
-                                pymongo.database.Database,
-                                mongita.database.Database,
-                            ]
-                        ] = None,
-                        pre_call: Optional[Callable] = None,
-                        page: int,
-                        size: int,
-                        **kwargs,
+                            *args,
+                            database: Optional[
+                                Union[
+                                    str,
+                                    pymongo.database.Database,
+                                    mongita.database.Database,
+                                ]
+                            ] = None,
+                            pre_call: Optional[Callable] = None,
+                            page: int,
+                            size: int,
+                            **kwargs,
                     ) -> Cursor:
                         skip = (page - 1) * size
 
@@ -442,18 +617,28 @@ def client_constructor(engine: str, *args, **kwargs):
 
                     @staticmethod
                     def find_classes(
-                        *args,
-                        database: Optional[
-                            Union[
-                                str,
-                                pymongo.database.Database,
-                                mongita.database.Database,
-                            ]
-                        ] = None,
-                        **kwargs,
+                            *args,
+                            database: Optional[
+                                Union[
+                                    str,
+                                    pymongo.database.Database,
+                                    mongita.database.Database,
+                                ]
+                            ] = None,
+                            **kwargs,
                     ) -> Cursor:
                         """
-                        Find multiple document from this class s and return a `Cursor` that you can iterate over that contains the documents as a mongoclass.
+                        Find multiple document from this class s and return a `Cursor` that you can iterate over that
+                        contains the documents as a mongoclass.
+
+                        Examples:
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user = User("John Howard", "john@gmail.com", 8771, "PH") # doctest: +SKIP
+                            >>> user.find_classes()  # doctest: +SKIP
+                            >>> user.insert()  # doctest: +SKIP
+                            >>> user.find_classes()  # doctest: +SKIP
+                            <mongoclass.cursor.Cursor object at 0x1102d7cd0>
+
 
                         Parameters
                         ----------
@@ -476,7 +661,8 @@ def client_constructor(engine: str, *args, **kwargs):
 
                     def as_json(this, perform_nesting: bool = nested) -> dict:
                         """
-                        Convert this mongoclass into a json serializable object. This will pop mongodb and mongoclass reserved attributes such as _mongodb_id, _mongodb_collection, etc.
+                        Convert this mongoclass into a json serializable object. This will pop mongodb and mongoclass
+                        reserved attributes such as _mongodb_id, _mongodb_collection, etc.
                         """
 
                         x = copy.copy(this.__dict__)
@@ -536,13 +722,13 @@ def client_constructor(engine: str, *args, **kwargs):
             return wrapper
 
         def find_class(
-            self,
-            collection: str,
-            *args,
-            database: Optional[
-                Union[str, pymongo.database.Database, mongita.database.Database]
-            ] = None,
-            **kwargs,
+                self,
+                collection: str,
+                *args,
+                database: Optional[
+                    Union[str, pymongo.database.Database, mongita.database.Database]
+                ] = None,
+                **kwargs,
         ) -> Optional[object]:
             """
             Find a single document and convert it onto a mongoclass that maps to the collection of the document.
@@ -570,17 +756,20 @@ def client_constructor(engine: str, *args, **kwargs):
                 return
             return self.map_document(query, collection, db.name)
 
+        find_one = find_class
+
         def find_classes(
-            self,
-            collection: str,
-            *args,
-            database: Optional[
-                Union[str, pymongo.database.Database, mongita.database.Database]
-            ] = None,
-            **kwargs,
+                self,
+                collection: str,
+                *args,
+                database: Optional[
+                    Union[str, pymongo.database.Database, mongita.database.Database]
+                ] = None,
+                **kwargs,
         ) -> Cursor:
             """
-            Find multiple documents and return a `Cursor` that you can iterate over that contains the documents as a mongoclass.
+            Find multiple documents and return a `Cursor` that you can iterate over that contains the documents as a
+            mongoclass.
 
             Parameters
             ----------
@@ -606,26 +795,40 @@ def client_constructor(engine: str, *args, **kwargs):
             )
             return cursor
 
+
         def insert_classes(
-            self, mongoclasses: Union[object, List[object]], *args, **kwargs
+                self, mongoclasses: Union[object, List[object]], *args, **kwargs
         ) -> Union[
             pymongo.results.InsertOneResult,
             pymongo.results.InsertManyResult,
             List[pymongo.results.InsertOneResult],
         ]:
             """
-            Insert a mongoclass or a list of mongoclasses into its respective collection and database. This method can accept mongoclasses with different collections and different databases as long as `insert_one` is `True`.
+            Insert a mongoclass or a list of mongoclasses into its respective collection and database. This method
+            can accept mongoclasses with different collections and different databases as long as `insert_one` is
+            `True`.
+
+            Examples:
+                >>> # noinspection PyUnresolvedReferences
+                >>> users = [User("John Dee", "johndee@gmail.com", 100), \
+                User("Michael Reeves", "michaelreeves@gmail.com", 42069) ]   # docstring: +SKIP
+                >>> # noinspection PyUnresolvedReferences
+                >>> client.insert_classes(users)  # docstring: +SKIP
 
             Notes
             -----
-            - If you're inserting multiple mongoclasses with `insert_one=False` and `ordered=False`, the provided mongoclasses will be mutated by setting a `_mongodb_id` attribute with the id coming from `InsertManyResult` after this method executes.
+            - If you're inserting multiple mongoclasses with `insert_one=False` and `ordered=False`, the provided
+            mongoclasses will be mutated by setting a `_mongodb_id` attribute with the id coming from
+            `InsertManyResult` after this method executes.
 
             Parameters
             ----------
             `mongoclasses` : Union[object, List[object]]
-                A list of mongoclasses or a single mongoclass. When inserting a single mongoclass, you can just do `mongoclass.insert()`
+                A list of mongoclasses or a single mongoclass. When inserting a single mongoclass, you can just do
+                `mongoclass.insert()`
             `insert_one` : bool
-                Whether to call `mongoclass.insert()` on each mongoclass. Defaults to False. False means it would use `Collection.insert_many` to insert all the documents at once.
+                Whether to call `mongoclass.insert()` on each mongoclass. Defaults to False. False means it would use
+                `Collection.insert_many` to insert all the documents at once.
             `*args, **kwargs` :
                 To be passed onto `Collection.insert_many` or `mongoclass.insert()`
 
@@ -661,6 +864,8 @@ def client_constructor(engine: str, *args, **kwargs):
 
             return insert_result
 
+        insert_many = insert_classes
+
     return MongoClassClientClass(*args, **kwargs)
 
 
@@ -675,16 +880,37 @@ class SupportsMongoClass(Protocol):
     _mongodb_db: Union[pymongo.database.Database, mongita.database.Database]
     _mongodb_id: ObjectId
 
-    def rm(self) -> Union[
-        pymongo.results.DeleteResult, mongita.results.DeleteResult
-    ]: ...
+    @property
+    def collection(self) -> pymongo.collection.Collection:
+        return ...
 
-    def one(self) -> Optional[dict]: ...
+    def createIndex(self, field: str): ...
+
+    def distinct(self, field: str, query: dict) -> List[Union[str, int, dict, list]]: ...
+
+    def find(self, *args, **kwargs) -> Cursor: ...
+
+    def getIndexes(self) -> CommandCursor[MutableMapping[str, Any]]: ...
 
     def has(self) -> bool: ...
 
     @property
-    def collection(self) -> pymongo.collection.Collection: ...
+    def id(self) -> ObjectId:
+        return ...
+
+    @property
+    def indexName(self) -> Optional[str]:
+        return ...
+
+    @property
+    def indexValue(self) -> Union[int, str, dict, list]:
+        return ...
+
+    def one(self) -> Optional[dict]: ...
+
+    def rm(self) -> Union[
+        pymongo.results.DeleteResult, mongita.results.DeleteResult
+    ]: ...
 
     def insert(self, *args, **kwargs) -> dict: ...
 
@@ -719,6 +945,8 @@ class SupportsMongoClass(Protocol):
     ] = ...,
                    **kwargs,
                    ) -> Optional[object]: ...
+
+    find_one = find_class
 
     @staticmethod
     def aggregate(
@@ -764,3 +992,12 @@ class SupportsMongoClass(Protocol):
 
     def as_json(self, perform_nesting: bool = ...) -> dict: ...
 
+    def insert_classes(
+            self, mongoclasses: Union[object, List[object]], *args, **kwargs
+    ) -> Union[
+        pymongo.results.InsertOneResult,
+        pymongo.results.InsertManyResult,
+        List[pymongo.results.InsertOneResult],
+    ]: ...
+
+    insert_many = insert_classes
