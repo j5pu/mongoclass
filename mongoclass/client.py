@@ -177,6 +177,14 @@ def client_constructor(engine: str, *args, test: bool = False, **kwargs):
                         if _insert:
                             this.insert()
 
+                    def rm(this) -> Union[
+                        pymongo.results.DeleteResult, mongita.results.DeleteResult
+                    ]:
+                        """
+                        Delete instance/one
+                        """
+                        return this.collection.delete_one({"_id": this._mongodb_id})
+
                     def one(this) -> Optional[dict]:
                         """
                         Find is this object is inserted
