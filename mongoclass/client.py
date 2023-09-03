@@ -3,12 +3,14 @@ import dataclasses
 import functools
 import os
 from typing import Callable, List, Optional, Tuple, Union
+from typing import Protocol
 
 import mongita.database
 import mongita.results
 import pymongo.collection
 import pymongo.database
 import pymongo.results
+from bson import ObjectId
 from mongita import MongitaClientDisk, MongitaClientMemory
 from pymongo import MongoClient
 
@@ -25,7 +27,7 @@ def client_constructor(engine: str, *args, test: bool = False, **kwargs):
     else:
         raise ValueError(f"Invalid engine '{engine}'")
 
-    class MongoClassClient(Engine):  # type: ignore
+    class MongoClassClientClass(Engine):  # type: ignore
 
         """
         Parameters
@@ -656,7 +658,7 @@ def client_constructor(engine: str, *args, test: bool = False, **kwargs):
 
             return insert_result
 
-    return MongoClassClient(*args, **kwargs)
+    return MongoClassClientClass(*args, **kwargs)
 
 
 def MongoClassClient(*args, test: bool = False, **kwargs):
@@ -664,4 +666,101 @@ def MongoClassClient(*args, test: bool = False, **kwargs):
 
 
 mongo = MongoClassClient(default_db_name="pdf", test=True)
+
+
+class SupportsMongoClass(Protocol):
+    COLLECTION_NAME: str
+    DATABASE_NAME: str
+    _mongodb_collection: str
+    _mongodb_db: Union[pymongo.database.Database, mongita.database.Database]
+    _mongodb_id: ObjectId
+
+    def rm(self) -> Union[
+        pymongo.results.DeleteResult, mongita.results.DeleteResult
+    ]: ...
+
+    def one(self) -> Optional[dict]: ...
+
+    def exists(self) -> bool: ...
+
+    @property
+    def collection(self) -> pymongo.collection.Collection: ...
+
+    def insert(self, *args, **kwargs) -> dict: ...
+
+    def update(self, operation: dict, *args, **kwargs) -> tuple[
+        Union[pymongo.results.UpdateResult, mongita.results.UpdateResult], object,
+    ]: ...
+
+    def save(self, *args, **kwargs) -> tuple[
+        Union[
+            pymongo.results.UpdateResult,
+            pymongo.results.InsertOneResult,
+            mongita.results.InsertOneResult,
+            mongita.results.UpdateResult,
+        ],
+        object,
+    ]: ...
+
+    def delete(self, *args, **kwargs) -> Union[
+        pymongo.results.DeleteResult, mongita.results.DeleteResult
+    ]: ...
+
+    @staticmethod
+    def count_documents(*args, **kwargs) -> int: ...
+
+    @staticmethod
+    def find_class(*args, database: Optional[
+        Union[
+            str,
+            pymongo.database.Database,
+            mongita.database.Database,
+        ]
+    ] = ...,
+                   **kwargs,
+                   ) -> Optional[object]: ...
+
+    @staticmethod
+    def aggregate(
+            *args,
+            database: Optional[
+                Union[
+                    str,
+                    pymongo.database.Database,
+                    mongita.database.Database,
+                ]
+            ] = ...,
+            **kwargs,
+    ) -> Cursor: ...
+
+    @staticmethod
+    def paginate(
+            *args,
+            database: Optional[
+                Union[
+                    str,
+                    pymongo.database.Database,
+                    mongita.database.Database,
+                ]
+            ] = ...,
+            pre_call: Optional[Callable] = ...,
+            page: int,
+            size: int,
+            **kwargs,
+    ) -> Cursor: ...
+
+    @staticmethod
+    def find_classes(
+            *args,
+            database: Optional[
+                Union[
+                    str,
+                    pymongo.database.Database,
+                    mongita.database.Database,
+                ]
+            ] = ...,
+            **kwargs,
+    ) -> Cursor: ...
+
+    def as_json(self, perform_nesting: bool = ...) -> dict: ...
 
