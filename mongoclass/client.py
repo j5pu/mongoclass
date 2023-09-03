@@ -1,6 +1,7 @@
 import copy
 import dataclasses
 import functools
+import inspect
 import os
 from typing import Callable, List, Optional, Tuple, Union
 from typing import Protocol
@@ -17,7 +18,7 @@ from pymongo import MongoClient
 from .cursor import Cursor
 
 
-def client_constructor(engine: str, *args, test: bool = False, **kwargs):
+def client_constructor(engine: str, *args, **kwargs):
     if engine == "pymongo":
         Engine = MongoClient
     elif engine == "mongita_disk":
@@ -41,8 +42,10 @@ def client_constructor(engine: str, *args, test: bool = False, **kwargs):
         def __init__(self, default_db_name: str = "main", *args, **kwargs) -> None:
             super().__init__(*args, **kwargs)
             self.mapping = {}
-            if test or os.environ.get("MONGO_TEST"):
-                default_db_name = f"{default_db_name}-test"
+            for f in inspect.stack():
+                if "pytest" in f.filename or "docrunner" in f.filename or "PyCharm" in f.filename:
+                    default_db_name = f"{default_db_name}-test"
+                    break
             self.default_database: Union[
                 pymongo.database.Database, mongita.database.Database
             ] = self[default_db_name]
@@ -193,7 +196,7 @@ def client_constructor(engine: str, *args, test: bool = False, **kwargs):
                         """
                         return this.collection.find_one(this.as_json())
 
-                    def exists(this) -> bool:
+                    def has(this) -> bool:
                         """Returns True if this object is inserted"""
                         return bool(this.one())
 
@@ -661,11 +664,8 @@ def client_constructor(engine: str, *args, test: bool = False, **kwargs):
     return MongoClassClientClass(*args, **kwargs)
 
 
-def MongoClassClient(*args, test: bool = False, **kwargs):
-    return client_constructor("pymongo", *args, test=test, **kwargs)
-
-
-mongo = MongoClassClient(default_db_name="pdf", test=True)
+def MongoClassClient(*args, **kwargs):
+    return client_constructor("pymongo", *args, **kwargs)
 
 
 class SupportsMongoClass(Protocol):

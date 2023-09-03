@@ -21,9 +21,9 @@ class TestFind(unittest.TestCase):
 
         user = User("John Howard", "john@gmail.com", 8771, "PH")
         user.insert()
-        self.assertTrue(user.exists())
+        self.assertTrue(user.has())
         user.rm()
-        self.assertFalse(user.exists())
+        self.assertFalse(user.has())
 
 
 if __name__ == "__main__":
