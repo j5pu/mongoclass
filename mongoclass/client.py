@@ -2,6 +2,7 @@ import copy
 import dataclasses
 import functools
 import inspect
+import os
 from typing import Any
 from typing import Callable
 from typing import List
@@ -49,10 +50,11 @@ def client_constructor(engine: str, *args, **kwargs):
         def __init__(self, default_db_name: str = "main", *args, **kwargs) -> None:
             super().__init__(*args, **kwargs)
             self.mapping = {}
-            for f in inspect.stack():
-                if "pytest" in f.filename or "docrunner" in f.filename or "PyCharm" in f.filename:
-                    default_db_name = f"{default_db_name}-test"
-                    break
+            if os.environ.get("MONGOCLASS") is None:
+                for f in inspect.stack():
+                    if "pytest" in f.filename or "docrunner" in f.filename or "PyCharm" in f.filename:
+                        default_db_name = f"{default_db_name}-test"
+                        break
             self.default_database: Union[
                 pymongo.database.Database, mongita.database.Database
             ] = self[default_db_name]
