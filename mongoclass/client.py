@@ -142,6 +142,10 @@ def client_constructor(engine: str, *args, **kwargs):
             if _id:
                 data["_mongodb_id"] = _id
 
+            for field in dataclasses.fields(cls["constructor"]):
+                if field.init is False :
+                    data.pop(field.name, None)
+
             return cls["constructor"](**data)
 
         def mongoclass(
