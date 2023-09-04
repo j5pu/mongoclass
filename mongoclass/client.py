@@ -6,7 +6,6 @@ import os
 from typing import Any
 from typing import Callable
 from typing import List
-from typing import Mapping
 from typing import MutableMapping
 from typing import Optional
 from typing import Protocol
@@ -23,6 +22,7 @@ from mongita import MongitaClientDisk
 from mongita import MongitaClientMemory
 from pymongo import MongoClient
 from pymongo.command_cursor import CommandCursor
+from pymongo.errors import DuplicateKeyError
 
 from .cursor import Cursor
 
@@ -367,6 +367,8 @@ def client_constructor(engine: str, *args, **kwargs):
                         """
                         Insert this mongoclass as a document in the collection.
 
+                        In case DuplicateKeyError then it will save to update
+
                         Parameters
                         ----------
                         `*args, **kwargs` :
@@ -418,22 +420,25 @@ def client_constructor(engine: str, *args, **kwargs):
                         `Tuple[UpdateResult, Optional[object]]`
                         """
 
-                        return_new = kwargs.pop("return_new", True)
+                        try:
+                            return_new = kwargs.pop("return_new", True)
 
-                        res = this._mongodb_db[this._mongodb_collection].update_one(
-                            {"_id": this._mongodb_id}, operation, *args, **kwargs
-                        )
-                        return_value = this
-                        if return_new:
-                            _id = this._mongodb_id or res.upserted_id
-                            if _id:
-                                return_value = self.find_class(
-                                    this._mongodb_collection,
-                                    {"_id": _id},
-                                    database=this._mongodb_db,
-                                )
+                            res = this._mongodb_db[this._mongodb_collection].update_one(
+                                {"_id": this._mongodb_id}, operation, *args, **kwargs
+                            )
+                            return_value = this
+                            if return_new:
+                                _id = this._mongodb_id or res.upserted_id
+                                if _id:
+                                    return_value = self.find_class(
+                                        this._mongodb_collection,
+                                        {"_id": _id},
+                                        database=this._mongodb_db,
+                                    )
 
-                        return (res, return_value)
+                            return (res, return_value)
+                        except DuplicateKeyError:
+                            return this.save()
 
                     def save(
                             this, *args, **kwargs
