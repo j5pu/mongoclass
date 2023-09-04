@@ -6,6 +6,7 @@ import os
 from typing import Any
 from typing import Callable
 from typing import List
+from typing import Mapping
 from typing import MutableMapping
 from typing import Optional
 from typing import Protocol
@@ -363,7 +364,14 @@ def client_constructor(engine: str, *args, **kwargs):
 
                     def insert(
                             this, *args, **kwargs
-                    ) -> dict:
+                    ) -> Union[dict, Tuple[
+                        Union[
+                            pymongo.results.UpdateResult,
+                            pymongo.results.InsertOneResult,
+                            mongita.results.InsertOneResult,
+                            mongita.results.UpdateResult,
+                        ],
+                        object,]]:
                         """
                         Insert this mongoclass as a document in the collection.
 
@@ -378,15 +386,18 @@ def client_constructor(engine: str, *args, **kwargs):
                         -------
                         `InsertOneResult`
                         """
-                        if query := this._mongodb_db[this._mongodb_collection].find_one(this.as_json()):
-                            this._mongodb_id = query["_id"]
-                            return query
-                        else:
-                            res = this._mongodb_db[this._mongodb_collection].insert_one(
-                                this.as_json(), *args, **kwargs
-                            )
-                            this._mongodb_id = res.inserted_id
-                            return this._mongodb_db[this._mongodb_collection].find_one({"_id": this._mongodb_id})
+                        try:
+                            if query := this._mongodb_db[this._mongodb_collection].find_one(this.as_json()):
+                                this._mongodb_id = query["_id"]
+                                return query
+                            else:
+                                res = this._mongodb_db[this._mongodb_collection].insert_one(
+                                    this.as_json(), *args, **kwargs
+                                )
+                                this._mongodb_id = res.inserted_id
+                                return this._mongodb_db[this._mongodb_collection].find_one({"_id": this._mongodb_id})
+                        except (DuplicateKeyError, mongita.errors.DuplicateKeyError):
+                            return this.save()
 
                     def update(
                             this, operation: dict, *args, **kwargs
@@ -420,25 +431,22 @@ def client_constructor(engine: str, *args, **kwargs):
                         `Tuple[UpdateResult, Optional[object]]`
                         """
 
-                        try:
-                            return_new = kwargs.pop("return_new", True)
+                        return_new = kwargs.pop("return_new", True)
 
-                            res = this._mongodb_db[this._mongodb_collection].update_one(
-                                {"_id": this._mongodb_id}, operation, *args, **kwargs
-                            )
-                            return_value = this
-                            if return_new:
-                                _id = this._mongodb_id or res.upserted_id
-                                if _id:
-                                    return_value = self.find_class(
-                                        this._mongodb_collection,
-                                        {"_id": _id},
-                                        database=this._mongodb_db,
-                                    )
+                        res = this._mongodb_db[this._mongodb_collection].update_one(
+                            {"_id": this._mongodb_id}, operation, *args, **kwargs
+                        )
+                        return_value = this
+                        if return_new:
+                            _id = this._mongodb_id or res.upserted_id
+                            if _id:
+                                return_value = self.find_class(
+                                    this._mongodb_collection,
+                                    {"_id": _id},
+                                    database=this._mongodb_db,
+                                )
 
-                            return (res, return_value)
-                        except DuplicateKeyError:
-                            return this.save()
+                        return (res, return_value)
 
                     def save(
                             this, *args, **kwargs
