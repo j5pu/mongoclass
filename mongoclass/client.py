@@ -364,14 +364,7 @@ def client_constructor(engine: str, *args, **kwargs):
 
                     def insert(
                             this, *args, **kwargs
-                    ) -> Union[dict, Tuple[
-                        Union[
-                            pymongo.results.UpdateResult,
-                            pymongo.results.InsertOneResult,
-                            mongita.results.InsertOneResult,
-                            mongita.results.UpdateResult,
-                        ],
-                        object,]]:
+                    ) -> Union[dict, object]:
                         """
                         Insert this mongoclass as a document in the collection.
 
@@ -397,7 +390,9 @@ def client_constructor(engine: str, *args, **kwargs):
                                 this._mongodb_id = res.inserted_id
                                 return this._mongodb_db[this._mongodb_collection].find_one({"_id": this._mongodb_id})
                         except (DuplicateKeyError, mongita.errors.DuplicateKeyError):
-                            return this.save()
+                            data = this.as_json()
+                            result, new = this.update({"$set": data}, *args, return_new=True, **kwargs)
+                            return new
 
                     def update(
                             this, operation: dict, *args, **kwargs
