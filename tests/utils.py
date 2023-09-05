@@ -6,7 +6,7 @@ from mongita import MongitaClientDisk
 from pymongo import MongoClient
 
 HOSTS = ["localhost:27017", "./mongita"]
-DATABASES = ["mongoclass", "coordinates_data", "profiles_list"]
+DATABASES = ["mongoclass", "coordinates_data", "profiles_list", "mongoclass-test"]
 
 
 def drop_database(database: str = None) -> None:

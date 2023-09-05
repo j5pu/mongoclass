@@ -1,4 +1,4 @@
-.PHONY: clean publish tests version
+.PHONY: clean publish tests tox
 
 SHELL := $(shell bash -c 'command -v bash')
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -30,7 +30,7 @@ requirements:
 		pip3 install -r /tmp/requirements.txt
 
 tests: clean build
-	@source venv/bin/activate && python -m unittest
+	@source venv/bin/activate && python -m unittest && pytest
 
 tox:
 	@eval "$$(pyenv init --path)"; source venv/bin/activate && tox

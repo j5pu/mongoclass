@@ -1,11 +1,9 @@
-import random
 import unittest
-from dataclasses import dataclass, field
-from typing import List
 
 from .. import utils
 
 
+# noinspection PyPep8Naming
 class TestFind(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -15,13 +13,13 @@ class TestFind(unittest.TestCase):
     def tearDownClass(cls) -> None:
         utils.drop_database()
 
-    def test_one(self) -> None:
+    def test_find(self) -> None:
         client = utils.create_client()
         User = utils.create_class("user", client)
 
         user = User("John Howard", "john@gmail.com", 8771, "PH")
         user.insert()
-        self.assertTrue(user.has())
+        self.assertEqual([{'email': 'john@gmail.com'}], list(user.find({}, {"email": 1, "_id": 0})))
 
 
 if __name__ == "__main__":

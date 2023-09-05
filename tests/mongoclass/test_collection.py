@@ -1,5 +1,7 @@
 import unittest
 
+from pymongo.collection import Collection
+
 from .. import utils
 
 
@@ -12,14 +14,16 @@ class TestFind(unittest.TestCase):
     def tearDownClass(cls) -> None:
         utils.drop_database()
 
-    def test_id(self) -> None:
+    # noinspection PyPep8Naming
+    def test_collection(self) -> None:
         client = utils.create_client()
         User = utils.create_class("user", client)
-
         user = User("John Howard", "john@gmail.com", 8771, "PH")
-        user.insert()
-        self.assertTrue(user.has())
-        self.assertEqual(user.id, user._mongodb_id)
+        self.assertIsInstance(user.collection(), Collection)
+        inserted = user.insert()
+        self.assertIsInstance(inserted, dict)
+        self.assertNotEqual(inserted, {})
+        self.assertEqual(inserted, user.one())
 
 
 if __name__ == "__main__":

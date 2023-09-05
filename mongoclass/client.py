@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import dataclasses
 import functools
@@ -6,7 +7,6 @@ import os
 from typing import Any
 from typing import Callable
 from typing import List
-from typing import Mapping
 from typing import MutableMapping
 from typing import Optional
 from typing import Protocol
@@ -25,9 +25,73 @@ from pymongo import MongoClient
 from pymongo.command_cursor import CommandCursor
 from pymongo.errors import DuplicateKeyError
 
-from .cursor import Cursor
+from mongoclass.cursor import Cursor
 
 
+def is_testing() -> bool:
+    """
+    True if env var `MONGOCLASS_PRODUCTION` is None or any of pytest, docrunner, unittest, PyCharm in callers filenames.
+
+    Examples:
+        >>> from mongoclass.client import is_testing
+        >>>
+        >>> is_testing()
+        True
+
+    """
+    if os.environ.get("MONGOCLASS_PRODUCTION"):
+        return False
+    for f in inspect.stack():
+        if "pytest" in f.filename or "docrunner" in f.filename or "unittest" in f.filename or "PyCharm" in f.filename:
+            return True
+    return False
+
+
+def run_if_production(func):
+    """
+    A decorator that will run the function if TESTING is False.
+
+    Examples:
+        >>> from mongoclass.client import is_testing
+        >>> from mongoclass.client import run_if_production
+        >>> from mongoclass.client import run_in_production
+        >>>
+        >>> @run_if_production
+        ... def hello():
+        ...    return is_testing()
+        >>>
+        >>> hello()
+        >>>
+        >>> with run_in_production():
+        ...     hello()
+        False
+    """
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if is_testing():
+            return
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@contextlib.contextmanager
+def run_in_production():
+    """
+    A context manager that will set TESTING to False.
+
+    Examples:
+        >>> with run_in_production():
+        ...     is_testing()
+        False
+    """
+    os.environ["MONGOCLASS_PRODUCTION"] = "1"
+    yield
+    del os.environ["MONGOCLASS_PRODUCTION"]
+
+
+# noinspection PyPep8Naming
 def client_constructor(engine: str, *args, **kwargs):
     if engine == "pymongo":
         Engine = MongoClient
@@ -38,6 +102,7 @@ def client_constructor(engine: str, *args, **kwargs):
     else:
         raise ValueError(f"Invalid engine '{engine}'")
 
+    # noinspection PyShadowingNames
     class MongoClassClientClass(Engine):  # type: ignore
         """
         Parameters
@@ -51,11 +116,10 @@ def client_constructor(engine: str, *args, **kwargs):
         def __init__(self, default_db_name: str = "main", *args, **kwargs) -> None:
             super().__init__(*args, **kwargs)
             self.mapping = {}
-            if os.environ.get("MONGOCLASS") is None:
-                for f in inspect.stack():
-                    if "pytest" in f.filename or "docrunner" in f.filename or "PyCharm" in f.filename:
-                        default_db_name = f"{default_db_name}-test"
-                        break
+
+            if is_testing():
+                default_db_name = f"{default_db_name}-test"
+
             self.default_database: Union[
                 pymongo.database.Database, mongita.database.Database
             ] = self[default_db_name]
@@ -72,7 +136,7 @@ def client_constructor(engine: str, *args, **kwargs):
             if database is None:
                 return self.default_database
             if isinstance(
-                    database, (pymongo.database.Database, mongita.database.Database)
+                database, (pymongo.database.Database, mongita.database.Database)
             ):
                 return database
             return self[database]
@@ -144,7 +208,7 @@ def client_constructor(engine: str, *args, **kwargs):
                 data["_mongodb_id"] = _id
 
             for field in dataclasses.fields(cls["constructor"]):
-                if field.init is False :
+                if field.init is False:
                     data.pop(field.name, None)
 
             return cls["constructor"](**data)
@@ -181,6 +245,7 @@ def client_constructor(engine: str, *args, **kwargs):
             def wrapper(cls):
                 collection_name = collection or cls.__name__.lower()
 
+                # noinspection PyMethodParameters,PyShadowingNames
                 @functools.wraps(cls, updated=())
                 class Inner(cls):
                     COLLECTION_NAME = collection_name
@@ -200,10 +265,9 @@ def client_constructor(engine: str, *args, **kwargs):
                         if _insert:
                             this.insert()
 
-                    @property
-                    def collection(self) -> pymongo.collection.Collection:
+                    def collection(this) -> pymongo.collection.Collection:
                         """returns collection object"""
-                        return self._mongodb_db[self._mongodb_collection]
+                        return this._mongodb_db[this._mongodb_collection]
 
                     def createIndex(self, field: str) -> str:
                         """creates an unique index
@@ -219,9 +283,9 @@ def client_constructor(engine: str, *args, **kwargs):
                         Returns:
                             {field}_1
                         """
-                        return self.collection.create_index(field, unique=True)
+                        return self.collection().create_index(field, unique=True)
 
-                    def distinct(self, field: str, query: dict = None) -> List[Union[str, int, dict, list]]:
+                    def distinct(this, field: str, query: dict = None) -> List[Union[str, int, dict, list]]:
                         """
                         returns distinct values
 
@@ -234,9 +298,9 @@ def client_constructor(engine: str, *args, **kwargs):
                             field (str): the field to get distinct values
                             query (dict): the query to filter
                         """
-                        return self.collection.distinct(field, query)
+                        return this.collection().distinct(field, query)
 
-                    def find(self, *args, **kwargs) -> Cursor:
+                    def find(self, *fargs, **fkwargs) -> Cursor:
                         """
                         returns find
 
@@ -249,12 +313,12 @@ def client_constructor(engine: str, *args, **kwargs):
                             [{'email': 'john@gmail.com'}]
 
                         Args:
-                            *args:
-                            **kwargs:
+                            *fargs:
+                            **fkwargs:
                         """
-                        return self.collection.find(*args, **kwargs)
+                        return self.collection().find(*fargs, **fkwargs)
 
-                    def getIndexes(self) -> CommandCursor[MutableMapping[str, Any]]:
+                    def getIndexes(this) -> CommandCursor[MutableMapping[str, Any]]:
                         """
                         returns indexes
 
@@ -265,9 +329,9 @@ def client_constructor(engine: str, *args, **kwargs):
  SON([('v', 2), ('key', SON([('email', 1)])), ('name', 'email_1'), ('unique', True)])]
 
                         """
-                        return self.collection.list_indexes()
+                        return this.collection().list_indexes()
 
-                    def has(self) -> bool:
+                    def has(this) -> bool:
                         """
                         Returns True if this object is inserted
 
@@ -280,51 +344,48 @@ def client_constructor(engine: str, *args, **kwargs):
                             >>> user.has()  # doctest: +SKIP
                             True
                         """
-                        return bool(self.one())
+                        return bool(this.one())
 
-                    @property
-                    def id(self) -> ObjectId:
+                    def id(this) -> ObjectId:
                         """
                         Returns the ObjectId
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
                             >>> user = User("John Howard") # doctest: +SKIP
-                            >>> user.id  # doctest: +SKIP
+                            >>> user.id()  # doctest: +SKIP
                             >>> user.insert()  # doctest: +SKIP
-                            >>> user.id  # doctest: +SKIP
+                            >>> user.id()  # doctest: +SKIP
                             '64f48d7f12247320a50db63b'
 
 
                         """
-                        return self._mongodb_id
+                        return this._mongodb_id
 
-                    @property
-                    def indexValue(self) -> Union[int, str, dict, list]:
+                    def indexValue(this) -> Union[int, str, dict, list]:
                         """
                         Returns the unique index value of the instance
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
-                            >>> user.indexValue  # doctest: +SKIP
+                            >>> user.indexValue()  # doctest: +SKIP
                             "john@gmail.com"
 
                         """
-                        if one := self.one():
-                            return one.get(self.indexName)
+                        if one := this.one():
+                            return one.get(this.indexName())
 
-                    @property
-                    def indexName(self) -> Optional[str]:
+                    def indexName(this) -> Optional[str]:
                         """
                         Returns the unique index name
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
-                            >>> user.indexName  # doctest: +SKIP
+                            >>> user.indexName()  # doctest: +SKIP
                             "email"
 
                         """
-                        for i in self.getIndexes():
+                        for i in this.getIndexes():
                             if i.get("unique"):
                                 return list(i.get("key").keys())[0]
 
@@ -342,7 +403,7 @@ def client_constructor(engine: str, *args, **kwargs):
  'email': 'john@gmail.com', 'phone': 8771, 'country': 'PH'}
 
                         """
-                        return self.collection.find_one(self.as_json())
+                        return self.collection().find_one(self.as_json())
 
                     def rm(self) -> Union[
                         pymongo.results.DeleteResult, mongita.results.DeleteResult
@@ -360,7 +421,7 @@ def client_constructor(engine: str, *args, **kwargs):
                             >>> rv.deleted_count
                             1
                         """
-                        return self.collection.delete_one({"_id": self._mongodb_id})
+                        return self.collection().delete_one({"_id": self._mongodb_id})
 
                     def insert(
                             this, *args, **kwargs
@@ -441,7 +502,7 @@ def client_constructor(engine: str, *args, **kwargs):
                                     database=this._mongodb_db,
                                 )
 
-                        return (res, return_value)
+                        return res, return_value
 
                     def save(
                             this, *args, **kwargs
@@ -467,7 +528,7 @@ def client_constructor(engine: str, *args, **kwargs):
                         >>>
                         >>> # Using .save()
                         >>> # noinspection PyUnresolvedReferences
-                        >>> user.name = "Rober Downey"
+                        >>> user.name = "Robert Downey"
                         >>> # noinspection PyUnresolvedReferences
                         >>> user.save()
 
@@ -484,7 +545,7 @@ def client_constructor(engine: str, *args, **kwargs):
                         """
 
                         if not this._mongodb_id:
-                            return (this.insert(), this)
+                            return this.insert(), this
 
                         data = this.as_json()
                         return this.update({"$set": data}, *args, **kwargs)
@@ -808,7 +869,6 @@ email='john@gmail.com', phone=8771, country='PH')
                 query, self.map_document, collection, db.name, self._engine_used
             )
             return cursor
-
 
         def insert_classes(
                 self, mongoclasses: Union[object, List[object]], *args, **kwargs

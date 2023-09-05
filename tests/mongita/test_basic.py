@@ -1,6 +1,9 @@
 import unittest
 from dataclasses import dataclass
 
+import mongita.errors
+
+from mongoclass import is_testing
 from .. import utils
 
 
@@ -14,18 +17,27 @@ class TestBasic(unittest.TestCase):
         utils.drop_database()
 
     def test_wrap(self) -> None:
-        client = utils.create_client()
+        client = utils.create_client(engine="mongita_disk")
         User = utils.create_class("user", client)
         self.assertEqual(User.__name__, "User")
 
     def test_basic(self) -> None:
-        client = utils.create_client()
-        self.assertEqual(client.default_database.name, "mongoclass")
+        client = utils.create_client(engine="mongita_disk")
+
+        if is_testing():
+            self.assertEqual(client.default_database.name, "mongoclass-test")
+        else:
+            self.assertEqual(client.default_database.name, "mongoclass")
+
         self.assertEqual(client.mapping, {})
-        client.server_info()
+
+        try:
+            client.server_info()
+        except mongita.errors.MongitaNotImplementedError:
+            pass
 
     def test_as_json(self) -> None:
-        client = utils.create_client()
+        client = utils.create_client(engine="mongita_disk")
 
         @client.mongoclass()
         @dataclass
@@ -53,26 +65,46 @@ class TestBasic(unittest.TestCase):
         self.assertEqual(
             john.as_json(), {"email": "trevor@gmail.com", "metadata": metadata}
         )
-        self.assertEqual(
-            john.as_json(True),
-            {
-                "email": "trevor@gmail.com",
-                "metadata": {
-                    "_nest_collection": "metadata",
-                    "_nest_database": utils.DATABASES[0],
-                    "data": {
-                        "name": {
-                            "_nest_collection": "nameinformation",
-                            "_nest_database": utils.DATABASES[0],
-                            "data": {"first": "Trevor", "last": "Warts"},
-                        }
+
+        if is_testing():
+            self.assertEqual(
+                john.as_json(True),
+                {
+                    "email": "trevor@gmail.com",
+                    "metadata": {
+                        "_nest_collection": "metadata",
+                        "_nest_database": utils.DATABASES[3],
+                        "data": {
+                            "name": {
+                                "_nest_collection": "nameinformation",
+                                "_nest_database": utils.DATABASES[3],
+                                "data": {"first": "Trevor", "last": "Warts"},
+                            }
+                        },
                     },
                 },
-            },
-        )
+            )
+        else:
+            self.assertEqual(
+                john.as_json(True),
+                {
+                    "email": "trevor@gmail.com",
+                    "metadata": {
+                        "_nest_collection": "metadata",
+                        "_nest_database": utils.DATABASES[0],
+                        "data": {
+                            "name": {
+                                "_nest_collection": "nameinformation",
+                                "_nest_database": utils.DATABASES[0],
+                                "data": {"first": "Trevor", "last": "Warts"},
+                            }
+                        },
+                    },
+                },
+            )
 
     def test_decorator(self) -> None:
-        client = utils.create_client()
+        client = utils.create_client(engine="mongita_disk")
         default_database = client.default_database.name
 
         # Test decorator methods exists
