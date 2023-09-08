@@ -39,11 +39,13 @@ from mongoclass.cursor import Cursor
 
 __all__ = (
     "CONSOLE",
+    "atlas_add_ip",
     "atlas_api",
     "client_mongoclass",
     "client_pymongo",
     "is_testing",
     "mongo_url",
+    "myip",
     "run_if_production",
     "run_in_production",
     "SupportsMongoClass",
@@ -120,7 +122,7 @@ def atlas_add_ip(project: str) -> Optional[dict]:
     if group_id is None:
         raise RuntimeError(f"{project=} not found")
 
-    payload = json.dumps([{"cidrBlock": f"{requests.get('https://checkip.amazonaws.com').text.strip()}/32"}])
+    payload = json.dumps([{"cidrBlock": f"{myip()}/32"}])
 
     response = atlas_api(f"groups/{group_id}/accessList", payload=payload)
 
@@ -276,6 +278,19 @@ def mongo_url(
     return furl.furl(
         host=host, password=password, port=port, query=query, scheme=scheme, username=username
     ).url.replace("?", "/?")
+
+
+def myip() -> Optional[str]:
+    """
+    Atlas API
+
+    Examples:
+        >>> from mongoclass.client import myip
+        >>>
+        >>> myip()  # doctest: +ELLIPSIS
+        '...............'
+    """
+    return requests.get("https://checkip.amazonaws.com").text.strip()
 
 
 def run_if_production(func):
