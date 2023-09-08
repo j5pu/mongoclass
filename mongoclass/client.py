@@ -4,6 +4,7 @@ import copy
 import dataclasses
 import functools
 import inspect
+import json
 import os
 import warnings
 from typing import Any
@@ -61,7 +62,7 @@ rich.pretty.install(CONSOLE, expand_all=True)
 rich.traceback.install(show_locals=True)
 
 
-def atlas_api(url, query: dict = None, user: str = None, password: str = None, payload: dict = None) -> Optional[dict]:
+def atlas_api(url, query: dict = None, user: str = None, password: str = None, payload=None) -> Optional[dict]:
     """
     Atlas API
 
@@ -69,9 +70,8 @@ def atlas_api(url, query: dict = None, user: str = None, password: str = None, p
         >>> from mongoclass.client import atlas_api
         >>>
         >>> atlas_api("groups")  # doctest: +ELLIPSIS
-        {'links': [{'href': '...', 'rel': 'self'}], 'results': [{'clusterCount': 1, 'created':
-        '2023-09-02T08:30:14Z', 'id': '...', 'links': [{'href': 'https://cloud.mongodb.com/api/atlas/v2/groups/...',
-        'rel': 'self'}], 'name': 'pdf', 'orgId': '...'}], 'totalCount': 1}
+        {'links': [{'href': '...', 'rel': 'self'}], 'results': [{'clusterCount': 1, 'created': '2023-09-02T08:30:14Z',\
+ 'id': '...', 'links': [{'href': '...', 'rel': 'self'}], 'name': 'pdf', 'orgId': '...'}], 'totalCount': ...}
 
     Args:
         url: url
@@ -90,8 +90,41 @@ def atlas_api(url, query: dict = None, user: str = None, password: str = None, p
                         "envelope": False, "includeCount": True, "itemsPerPage": 100, "pageNum": 1, "pretty": False
                     })
 
-    return requests.get(url.tostr(), auth=HTTPDigestAuth(user, password),
-                        headers={"Accept": "application/vnd.atlas.2023-02-01+json"}, data=payload).json()
+    function = requests.post if payload else requests.get
+    return function(url.url, auth=HTTPDigestAuth(user, password),
+                    headers={
+                        "Accept": "application/vnd.atlas.2023-01-01+json",
+                        'Content-Type': 'application/vnd.atlas.2023-01-01+json'
+                    }, data=payload).json()
+
+
+def atlas_add_ip(project: str) -> Optional[dict]:
+    """
+    Add ip to project
+
+    Examples:
+        >>> from mongoclass.client import atlas_add_ip
+        >>>
+        >>> atlas_add_ip("pdf",)  # doctest: +ELLIPSIS
+        {'links': [{'href': '...', 'rel': 'self'}], 'results': [{'cidrBlock': '...', 'comment': 'My IP Address',\
+ 'groupId': '...', 'ipAddress': '...', 'links': [{'href': '...', 'rel': 'self'}]}...'totalCount': ...}
+
+    """
+    group_id = None
+    groups = atlas_api("groups")
+
+    for item in groups["results"]:
+        if item["name"] == project:
+            group_id = item["id"]
+            break
+    if group_id is None:
+        raise RuntimeError(f"{project=} not found")
+
+    payload = json.dumps([{"cidrBlock": f"{requests.get('https://checkip.amazonaws.com').text.strip()}/32"}])
+
+    response = atlas_api(f"groups/{group_id}/accessList", payload=payload)
+
+    return response
 
 
 def client_mongoclass(
