@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SwaggerSettings">
+    <remoteSpecificationUrls>
+      <UrlInfo>
+        <option name="urlString" value="https://mongodb-mms-prod-build-server.s3.amazonaws.com/openapi/58b1a9ccf4836a1f1f2bdf1c94c187b028ba1287-v2-2023-02-01.json" />
+      </UrlInfo>
+    </remoteSpecificationUrls>
+  </component>
+</project>

@@ -1,17 +1,25 @@
 from typing import Callable, Union
 
+import mongita.command_cursor
 import mongita.cursor
+import pymongo.command_cursor
 import pymongo.cursor
+from pymongo.typings import _DocumentType
 
 
 class Cursor:
     def __init__(
-        self,
-        cursor: Union[pymongo.cursor.Cursor, mongita.cursor.Cursor],
-        mapping_function: Callable,
-        collection_name: str,
-        database_name: str,
-        engine_used: str,
+            self,
+            cursor: Union[
+                pymongo.cursor.Cursor,
+                pymongo.command_cursor.CommandCursor[_DocumentType],
+                mongita.command_cursor.CommandCursor,
+                mongita.cursor.Cursor
+            ],
+            mapping_function: Callable,
+            collection_name: str,
+            database_name: str,
+            engine_used: str,
     ) -> None:
         self.internal_cursor = cursor
         self.mapping_function = mapping_function

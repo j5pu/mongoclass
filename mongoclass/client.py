@@ -1,31 +1,184 @@
+from __future__ import annotations
 import contextlib
 import copy
 import dataclasses
 import functools
 import inspect
 import os
+import warnings
 from typing import Any
 from typing import Callable
 from typing import List
 from typing import MutableMapping
 from typing import Optional
 from typing import Protocol
-from typing import Tuple
 from typing import Union
 
+import furl
 import mongita.database
 import mongita.results
 import pymongo.collection
 import pymongo.database
 import pymongo.results
+import requests
+import rich.pretty
+import rich.traceback
 from bson import ObjectId
+from furl.common import absent as _absent
 from mongita import MongitaClientDisk
 from mongita import MongitaClientMemory
+from mongita.results import UpdateResult
 from pymongo import MongoClient
 from pymongo.command_cursor import CommandCursor
 from pymongo.errors import DuplicateKeyError
+from pymongo.results import UpdateResult
+from requests.auth import HTTPDigestAuth
 
 from mongoclass.cursor import Cursor
+
+__all__ = (
+    "CONSOLE",
+    "atlas_api",
+    "client_mongoclass",
+    "client_pymongo",
+    "is_testing",
+    "mongo_url",
+    "run_if_production",
+    "run_in_production",
+    "SupportsMongoClass",
+    "SupportsMongoClassClient",
+    "client_constructor",
+    "MongoClassClient",
+)
+
+# ATLAS = "mongodb+srv://j5pu:1Zaragoza1@cluster0.xxjqsmg.mongodb.net"
+# CLIENT = pymongo.MongoClient(f"{ATLAS}/?retryWrites=true&w=majority")
+CONSOLE = rich.console.Console(force_interactive=True, color_system='256')
+# MONGO = mongoclass.MongoClassClient("pdf", f"{ATLAS}/?retryWrites=true&w=majority")
+
+
+rich.pretty.install(CONSOLE, expand_all=True)
+rich.traceback.install(show_locals=True)
+
+
+def atlas_api(url, query: dict = None, user: str = None, password: str = None, payload: dict = None) -> Optional[dict]:
+    """
+    Atlas API
+
+    Examples:
+        >>> from mongoclass.client import atlas_api
+        >>>
+        >>> atlas_api("groups")  # doctest: +ELLIPSIS
+        {'links': [{'href': '...', 'rel': 'self'}], 'results': [{'clusterCount': 1, 'created':
+        '2023-09-02T08:30:14Z', 'id': '...', 'links': [{'href': 'https://cloud.mongodb.com/api/atlas/v2/groups/...',
+        'rel': 'self'}], 'name': 'pdf', 'orgId': '...'}], 'totalCount': 1}
+
+    Args:
+        url: url
+        query:
+        user: user
+        password: password
+        payload: payload
+    """
+    user = user if user else os.environ.get("ATLAS_PUBLIC_KEY_MNOPI")
+    password = password if password else os.environ.get("ATLAS_PRIVATE_KEY_MNOPI")
+    if user is None or password is None:
+        raise RuntimeError(f"user and password must be set or pass as arguments: {user=}, {password=}")
+
+    url = furl.furl(f"https://cloud.mongodb.com/api/atlas/v2/{url}",
+                    query=(query or {}) | {
+                        "envelope": False, "includeCount": True, "itemsPerPage": 100, "pageNum": 1, "pretty": False
+                    })
+
+    return requests.get(url.tostr(), auth=HTTPDigestAuth(user, password),
+                        headers={"Accept": "application/vnd.atlas.2023-02-01+json"}, data=payload).json()
+
+
+def client_mongoclass(
+        atlas: bool = True,
+        db: str = "main",
+        host: str = _absent,
+        password: str = _absent,
+        port: Union[str, int] = _absent,
+        query: dict = _absent,
+        scheme: dict = _absent,
+        username: str = _absent,
+) -> Union[SupportsMongoClassClient, MongoClient, pymongo.database.Database]:
+    """
+    Returns a MongoClient
+
+    Examples:
+        >>> from mongoclass.client import client_mongoclass
+        >>>
+        >>> client = client_mongoclass(db="pdf")
+        >>> client  # doctest: +ELLIPSIS
+        MongoClient(host=['....mongodb.net:27017', '....mongodb.net:27017', '....mongodb.net:27017'],\
+ document_class=dict, tz_aware=False, connect=True,\
+ retrywrites=True, w='majority', authsource='admin',\
+ replicaset='...shard-0', tls=True)
+        >>> client.default_database  # doctest: +ELLIPSIS
+        Database(MongoClient(host=['....mongodb.net:27017', '....mongodb.net:27017',\
+ '....mongodb.net:27017'], document_class=dict, tz_aware=False, connect=True, retrywrites=True,\
+ w='majority', authsource='admin', replicaset='...shard-0', tls=True), 'pdf-test')
+        >>> client_mongoclass(atlas=False)  # doctest: +ELLIPSIS
+        MongoClient(host=['localhost:27017'], document_class=dict, tz_aware=False, connect=True)
+
+    Args:
+        atlas: True if atlas url to use atlas defaults
+        db: database (Defaults: main)
+        host: cluster/host/domain
+        password: password
+        port: port (Default: 27017)
+        query: query (Default: {"retryWrites": true, "w": "majority"})
+        scheme: scheme (Default: mongodb+srv)
+        username: user
+
+    Returns:
+        MongoClient
+    """
+    return MongoClassClient(
+        db,
+        mongo_url(atlas=atlas, host=host, password=password, port=port, query=query, scheme=scheme, username=username)
+    )
+
+
+def client_pymongo(
+        atlas: bool = True,
+        host: str = _absent,
+        password: str = _absent,
+        port: Union[str, int] = _absent,
+        query: dict = _absent,
+        scheme: dict = _absent,
+        username: str = _absent,
+) -> MongoClient:
+    """
+    Returns a MongoClient
+
+    Examples:
+        >>> from mongoclass.client import client_pymongo
+        >>>
+        >>> client_pymongo()  # doctest: +ELLIPSIS
+        MongoClient(host=['...:...', '....mongodb.net:27017', '....mongodb.net:27017'],\
+ document_class=dict, tz_aware=False, connect=True, retrywrites=True, w='majority', authsource='admin',\
+ replicaset='...', tls=True)
+        >>> client_pymongo(atlas=False)  # doctest: +ELLIPSIS
+        MongoClient(host=['localhost:27017'], document_class=dict, tz_aware=False, connect=True)
+
+    Args:
+        atlas: True if atlas url to use atlas defaults
+        host: cluster/host/domain
+        password: password
+        port: port (Default: 27017)
+        query: query (Default: {"retryWrites": true, "w": "majority"})
+        scheme: scheme (Default: mongodb+srv)
+        username: user
+
+    Returns:
+        MongoClient
+    """
+    return MongoClient(
+        mongo_url(atlas=atlas, host=host, password=password, port=port, query=query, scheme=scheme, username=username)
+    )
 
 
 def is_testing() -> bool:
@@ -45,6 +198,51 @@ def is_testing() -> bool:
         if "pytest" in f.filename or "docrunner" in f.filename or "unittest" in f.filename or "PyCharm" in f.filename:
             return True
     return False
+
+
+def mongo_url(
+        atlas: bool = True,
+        host: str = _absent,
+        password: str = _absent,
+        port: Union[str, int] = _absent,
+        query: dict = _absent,
+        scheme: dict = _absent,
+        username: str = _absent,
+) -> str:
+    """
+    Returns atlas url for connection
+
+    Examples:
+        >>> from mongoclass.client import mongo_url
+        >>>
+        >>> mongo_url()  # doctest: +ELLIPSIS
+        'mongodb+srv://...:...@....mongodb.net/?retryWrites=true&w=majority'
+        >>> mongo_url(atlas=False)
+        'mongodb://localhost:27017'
+
+    Args:
+        atlas: True if atlas url to use atlas defaults
+        host: cluster/host/domain
+        password: password
+        port: port (Default: 27017)
+        query: query (Default: {"retryWrites": true, "w": "majority"})
+        scheme: scheme (Default: mongodb+srv)
+        username: user
+
+    """
+    if atlas:
+        host = "cluster0.xxjqsmg.mongodb.net" if host is _absent else host
+        password = os.environ.get("ATLAS_PASSWORD") if password is _absent else password
+        query = {"retryWrites": "true", "w": "majority"} if query is _absent else query
+        scheme = "mongodb+srv" if scheme is _absent else scheme
+        username = os.environ.get("ATLAS_USER") if username is _absent else username
+    else:
+        host = "localhost" if host is _absent else host
+        port = 27017 if port is _absent else port
+        scheme = "mongodb" if scheme is _absent else scheme
+    return furl.furl(
+        host=host, password=password, port=port, query=query, scheme=scheme, username=username
+    ).url.replace("?", "/?")
 
 
 def run_if_production(func):
@@ -91,8 +289,198 @@ def run_in_production():
     del os.environ["MONGOCLASS_PRODUCTION"]
 
 
+class SupportsMongoClass(Protocol):
+    COLLECTION_NAME: str
+    DATABASE_NAME: str
+    _mongodb_collection: str
+    _mongodb_db: Union[pymongo.database.Database, mongita.database.Database]
+    _mongodb_id: ObjectId
+
+    @property
+    def collection(self) -> pymongo.collection.Collection:
+        return ...
+
+    def createIndex(self, field: str): ...
+
+    def distinct(self, field: str, query: dict) -> List[Union[str, int, dict, list]]: ...
+
+    def find(self, *args, **kwargs) -> Cursor: ...
+
+    def getIndexes(self) -> CommandCursor[MutableMapping[str, Any]]: ...
+
+    def has(self) -> bool: ...
+
+    @property
+    def id(self) -> ObjectId:
+        return ...
+
+    @property
+    def indexName(self) -> Optional[str]:
+        return ...
+
+    @property
+    def indexValue(self) -> Union[int, str, dict, list]:
+        return ...
+
+    def one(self) -> Optional[dict]: ...
+
+    def rm(self) -> Union[
+        pymongo.results.DeleteResult, mongita.results.DeleteResult
+    ]: ...
+
+    def insert(self, *args, **kwargs) -> dict: ...
+
+    def update(self, operation: dict, *args, **kwargs) -> tuple[
+        Union[pymongo.results.UpdateResult, mongita.results.UpdateResult], object,
+    ]: ...
+
+    def save(self, *args, **kwargs) -> tuple[
+        Union[
+            pymongo.results.UpdateResult,
+            pymongo.results.InsertOneResult,
+            mongita.results.InsertOneResult,
+            mongita.results.UpdateResult,
+        ],
+        object,
+    ]: ...
+
+    def delete(self, *args, **kwargs) -> Union[
+        pymongo.results.DeleteResult, mongita.results.DeleteResult
+    ]: ...
+
+    @staticmethod
+    def count_documents(*args, **kwargs) -> int: ...
+
+    @staticmethod
+    def find_class(*args, database: Optional[
+        Union[
+            str,
+            pymongo.database.Database,
+            mongita.database.Database,
+        ]
+    ] = ...,
+                   **kwargs,
+                   ) -> Optional[object]: ...
+
+    find_one = find_class
+
+    @staticmethod
+    def aggregate(
+            *args,
+            database: Optional[
+                Union[
+                    str,
+                    pymongo.database.Database,
+                    mongita.database.Database,
+                ]
+            ] = ...,
+            **kwargs,
+    ) -> Cursor: ...
+
+    @staticmethod
+    def paginate(
+            *args,
+            database: Optional[
+                Union[
+                    str,
+                    pymongo.database.Database,
+                    mongita.database.Database,
+                ]
+            ] = ...,
+            pre_call: Optional[Callable] = ...,
+            page: int,
+            size: int,
+            **kwargs,
+    ) -> Cursor: ...
+
+    @staticmethod
+    def find_classes(
+            *args,
+            database: Optional[
+                Union[
+                    str,
+                    pymongo.database.Database,
+                    mongita.database.Database,
+                ]
+            ] = ...,
+            **kwargs,
+    ) -> Cursor: ...
+
+    def as_json(self, perform_nesting: bool = ...) -> dict: ...
+
+    def insert_classes(
+            self, mongoclasses: Union[object, List[object]], *args, **kwargs
+    ) -> Union[
+        pymongo.results.InsertOneResult,
+        pymongo.results.InsertManyResult,
+        List[pymongo.results.InsertOneResult],
+    ]: ...
+
+    insert_many = insert_classes
+
+
+class SupportsMongoClassClient(Protocol):
+    mapping: dict = ...
+    default_database: pymongo.database.Database
+
+    def choose_database(self, database: Optional[
+        Union[
+            str,
+            pymongo.database.Database,
+            mongita.database.Database,
+        ]
+    ] = ...) -> Union[pymongo.database.Database, mongita.database.Database]: ...
+
+    def get_db(self, database: str) -> Union[pymongo.database.Database, mongita.database.Database]: ...
+
+    def map_document(self, data: dict, collection: str, database: str, force_nested: bool = ...) -> object: ...
+
+    def mongoclass(
+            self,
+            collection: Optional[str] = ...,
+            database: Optional[Union[str, pymongo.database.Database]] = ...,
+            insert_on_init: bool = ...,
+            nested: bool = ...,
+    ) -> Union[Callable, SupportsMongoClass]: ...
+
+    def find_class(
+            self,
+            collection: str,
+            *args,
+            database: Optional[
+                Union[
+                    str,
+                    pymongo.database.Database,
+                    mongita.database.Database,
+                ]
+            ] = ...,
+            **kwargs,
+    ) -> Optional[object]: ...
+
+    def find_classes(self, collection: str, *args, database: Optional[
+        Union[
+            str,
+            pymongo.database.Database,
+            mongita.database.Database,
+        ]
+    ] = ..., **kwargs,
+                     ) -> Cursor: ...
+
+    def insert_classes(
+            self, mongoclasses: Union[object, pymongo.collection.Collection, List[object]], *args, **kwargs
+    ) -> Union[
+        pymongo.results.InsertOneResult,
+        pymongo.results.InsertManyResult,
+        List[pymongo.results.InsertOneResult],
+    ]: ...
+
+    insert_many = insert_classes
+
+
 # noinspection PyPep8Naming
-def client_constructor(engine: str, *args, **kwargs):
+def client_constructor(engine: str, *args, **kwargs) -> Union[
+    SupportsMongoClassClient, MongoClient, pymongo.database.Database
+]:
     if engine == "pymongo":
         Engine = MongoClient
     elif engine == "mongita_disk":
@@ -457,7 +845,7 @@ def client_constructor(engine: str, *args, **kwargs):
 
                     def update(
                             this, operation: dict, *args, **kwargs
-                    ) -> Tuple[
+                    ) -> tuple[
                         Union[
                             pymongo.results.UpdateResult, mongita.results.UpdateResult
                         ],
@@ -506,15 +894,7 @@ def client_constructor(engine: str, *args, **kwargs):
 
                     def save(
                             this, *args, **kwargs
-                    ) -> Tuple[
-                        Union[
-                            pymongo.results.UpdateResult,
-                            pymongo.results.InsertOneResult,
-                            mongita.results.InsertOneResult,
-                            mongita.results.UpdateResult,
-                        ],
-                        object,
-                    ]:
+                    ) -> Union[tuple[Union[dict, object], Inner], tuple[Union[UpdateResult, UpdateResult], object]]:
                         """
                         Update this mongoclass document in the collection with the current state of the object.
 
@@ -870,8 +1250,9 @@ email='john@gmail.com', phone=8771, country='PH')
             )
             return cursor
 
+        # noinspection PyMethodMayBeStatic
         def insert_classes(
-                self, mongoclasses: Union[object, List[object]], *args, **kwargs
+                self, mongoclasses: Union[object, pymongo.collection.Collection, List[object]], *args, **kwargs
         ) -> Union[
             pymongo.results.InsertOneResult,
             pymongo.results.InsertManyResult,
@@ -943,135 +1324,15 @@ email='john@gmail.com', phone=8771, country='PH')
     return MongoClassClientClass(*args, **kwargs)
 
 
-def MongoClassClient(*args, **kwargs):
+def MongoClassClient(*args, **kwargs) -> Union[SupportsMongoClassClient, MongoClient, pymongo.database.Database]:
+    """
+    Examples:
+        >>> from mongoclass import MongoClassClient
+        >>> MongoClassClient("test", "mongodb://localhost:27017")
+        MongoClient(host=['localhost:27017'], document_class=dict, tz_aware=False, connect=True)
+
+    """
     return client_constructor("pymongo", *args, **kwargs)
 
 
-class SupportsMongoClass(Protocol):
-    COLLECTION_NAME: str
-    DATABASE_NAME: str
-    _mongodb_collection: str
-    _mongodb_db: Union[pymongo.database.Database, mongita.database.Database]
-    _mongodb_id: ObjectId
-
-    @property
-    def collection(self) -> pymongo.collection.Collection:
-        return ...
-
-    def createIndex(self, field: str): ...
-
-    def distinct(self, field: str, query: dict) -> List[Union[str, int, dict, list]]: ...
-
-    def find(self, *args, **kwargs) -> Cursor: ...
-
-    def getIndexes(self) -> CommandCursor[MutableMapping[str, Any]]: ...
-
-    def has(self) -> bool: ...
-
-    @property
-    def id(self) -> ObjectId:
-        return ...
-
-    @property
-    def indexName(self) -> Optional[str]:
-        return ...
-
-    @property
-    def indexValue(self) -> Union[int, str, dict, list]:
-        return ...
-
-    def one(self) -> Optional[dict]: ...
-
-    def rm(self) -> Union[
-        pymongo.results.DeleteResult, mongita.results.DeleteResult
-    ]: ...
-
-    def insert(self, *args, **kwargs) -> dict: ...
-
-    def update(self, operation: dict, *args, **kwargs) -> tuple[
-        Union[pymongo.results.UpdateResult, mongita.results.UpdateResult], object,
-    ]: ...
-
-    def save(self, *args, **kwargs) -> tuple[
-        Union[
-            pymongo.results.UpdateResult,
-            pymongo.results.InsertOneResult,
-            mongita.results.InsertOneResult,
-            mongita.results.UpdateResult,
-        ],
-        object,
-    ]: ...
-
-    def delete(self, *args, **kwargs) -> Union[
-        pymongo.results.DeleteResult, mongita.results.DeleteResult
-    ]: ...
-
-    @staticmethod
-    def count_documents(*args, **kwargs) -> int: ...
-
-    @staticmethod
-    def find_class(*args, database: Optional[
-        Union[
-            str,
-            pymongo.database.Database,
-            mongita.database.Database,
-        ]
-    ] = ...,
-                   **kwargs,
-                   ) -> Optional[object]: ...
-
-    find_one = find_class
-
-    @staticmethod
-    def aggregate(
-            *args,
-            database: Optional[
-                Union[
-                    str,
-                    pymongo.database.Database,
-                    mongita.database.Database,
-                ]
-            ] = ...,
-            **kwargs,
-    ) -> Cursor: ...
-
-    @staticmethod
-    def paginate(
-            *args,
-            database: Optional[
-                Union[
-                    str,
-                    pymongo.database.Database,
-                    mongita.database.Database,
-                ]
-            ] = ...,
-            pre_call: Optional[Callable] = ...,
-            page: int,
-            size: int,
-            **kwargs,
-    ) -> Cursor: ...
-
-    @staticmethod
-    def find_classes(
-            *args,
-            database: Optional[
-                Union[
-                    str,
-                    pymongo.database.Database,
-                    mongita.database.Database,
-                ]
-            ] = ...,
-            **kwargs,
-    ) -> Cursor: ...
-
-    def as_json(self, perform_nesting: bool = ...) -> dict: ...
-
-    def insert_classes(
-            self, mongoclasses: Union[object, List[object]], *args, **kwargs
-    ) -> Union[
-        pymongo.results.InsertOneResult,
-        pymongo.results.InsertManyResult,
-        List[pymongo.results.InsertOneResult],
-    ]: ...
-
-    insert_many = insert_classes
+warnings.filterwarnings(action="ignore", message="unclosed", category=ResourceWarning)
