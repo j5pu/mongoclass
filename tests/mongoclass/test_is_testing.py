@@ -1,7 +1,7 @@
 import unittest
 from bson.son import SON
 
-from mongoclass import is_testing
+from mongodata import is_testing
 from .. import utils
 
 EMAIL_INDEX = {"key": SON([("email", 1)]), "name": "email_1", "unique": True, "v": 2}

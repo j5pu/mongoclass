@@ -1,0 +1,52 @@
+line-length = 120
+fix = true
+select = [
+    # flake8-2020
+    "YTT",
+    # flake8-bandit
+    "S",
+    # flake8-bugbear
+    "B",
+    # flake8-builtins
+    "A",
+    # flake8-comprehensions
+    "C4",
+    # flake8-debugger
+    "T10",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # mccabe
+    "C90",
+    # pycodestyle
+    "E", "W",
+    # pyflakes
+    "F",
+    # pygrep-hooks
+    "PGH",
+    # pyupgrade
+    "UP",
+    # ruff
+    "RUF",
+    # tryceratops
+    "TRY",
+]
+[per-file-ignores]
+"src/mongodata/client.py" = [
+    # is too complex
+    "C901",
+    # shadowing a Python builtin
+    "A003",
+    # Use specific rule codes when ignoring type issues
+    "PGH003",
+    # Avoid specifying long messages outside the exception class
+    "TRY003"
+]
+"src/mongodata/cursor.py" = [
+    # shadowing a Python builtin
+    "A003",
+]
+
+[pep8-naming]
+ignore-names = ["longMessage"]

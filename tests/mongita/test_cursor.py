@@ -1,7 +1,7 @@
 import random
 import unittest
 
-from mongoclass.cursor import Cursor
+from mongodata.cursor import Cursor
 
 from .. import utils
 

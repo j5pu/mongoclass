@@ -1,12 +1,13 @@
 [project]
-name = "python-mongoclass"
-version = "0.1.30"
-description = "mongoclass"
+name = "mongodata"
+dynamic = ["version"]
+description = "mongodata"
 license = { text = "MIT" }
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "dnspython >= 2.2.1, <3",
     "furl >= 2.1.3, <3",
+    "huti >= 0.1.15, <1",
     "mongita >= 1.1.1, <2",
     "pymongo >= 4.5.0, <5",
     "redis >= 5.0.0, <6",
@@ -22,6 +23,7 @@ dev = [
     "mypy",
     "pip-tools",
     "pyflyby",
+    "ruff",
     "twine",
 ]
 
@@ -39,76 +41,10 @@ tests = [
 ]
 
 [tool.setuptools.packages.find]
-exclude = ["tests"]
+where = ["src"]  # ["."] by default
 
 [build-system]
 requires = ['setuptools', 'setuptools_scm>=6.2', 'wheel']
 build-backend = 'setuptools.build_meta'
 
-[tool.coverage.report]
-skip_empty = true
-[tool.coverage.html]
-directory = "coverage_html_report"
-[tool.coverage.run]
-branch = true
-source = ["mongoclass"]
-
-[tool.tox]
-legacy_tox_ini = """
-[tox]
-envlist = py{39, 310, 311, 312dev}
-isolated_build = True
-skip_missing_interpreters = true
-[gh-actions]
-python =
-    3.9: py39
-    3.10: py310
-    3.11: py311
-    3.12: py312-dev
-
-[testenv]
-passenv =
-    ATLAS_PRIVATE_KEY_MNOPI
-    ATLAS_PASSWORD
-    ATLAS_PUBLIC_KEY_MNOPI
-    ATLAS_USER
-commands = python -m unittest
-deps =
-    ipython
-    coverage[toml]
-    pytest
-    pytest_cov
-    pytest-doctestplus
-    pytest-lazy-fixture
-    pytest-mock
-    pytest-remotedata
-    pytest-sugar
-    pytest-xdist
-"""
-[tool.pytest.ini_options]
-addopts = [
-    "--doctest-plus",
-    "--doctest-rst",
-    "--doctest-ufunc",
-    "--remote-data",
-    '--full-trace',
-    '--showlocals',
-    '--strict-markers',
-    '--tb=long',
-    '-rAs', # “-r: short test summary info”, "-A: for all status.
-    '--verbosity=4',
-]
-console_output_style = "progress-even-when-capture-no"
-doctest_plus = "enabled" # https://github.com/scientific-python/pytest-doctestplus
-doctest_optionflags = [
-    "ELLIPSIS",
-    "FLOAT_CMP",
-    'IGNORE_EXCEPTION_DETAIL',
-    "IGNORE_WARNINGS",
-    "NORMALIZE_WHITESPACE"
-]
-log_level = 'ERROR'
-testpaths = [
-    "mongoclass"
-]
-
+[tool.setuptools_scm]

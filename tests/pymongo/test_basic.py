@@ -1,7 +1,7 @@
 import unittest
 from dataclasses import dataclass
 
-from mongoclass import is_testing
+from mongodata import is_testing
 from .. import utils
 
 

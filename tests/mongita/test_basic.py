@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import mongita.errors
 
-from mongoclass import is_testing
+from mongodata import is_testing
 from .. import utils
 
 

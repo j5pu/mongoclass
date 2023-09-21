@@ -68,7 +68,7 @@ class TestInsert(unittest.TestCase):
         )
 
         # Insert in a different database and a different collection name
-        Profile = utils.create_class("user", client, "profile", utils.DATABASES[2])
+        Profile = utils.create_class("user", client, "profile", utils.DATABASES[5])
         joe = Profile("Joe Dart", "joedart@gmail.com", 1500)
         insert_result = joe.insert()
         self.assertEqual(insert_result["_id"], joe._mongodb_id)

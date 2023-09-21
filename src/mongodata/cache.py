@@ -72,7 +72,8 @@ class MongoclassRedisCache:
         `mongoclass` : object
             The mongoclass class definition (not an instance).
         `filter_func` : Callable[[object], bool]
-            A callable that takes an element from the cache as input and returns a boolean value to indicate if it should be returned and finding should be stopped.
+            A callable that takes an element from the cache as input and returns a
+            boolean value to indicate if it should be returned and finding should be stopped.
 
         Returns
         -------
