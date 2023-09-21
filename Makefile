@@ -17,7 +17,7 @@ build: clean
 
 clean:
 	@rm -rf build dist mongita **/*.egg-info *.egg-info .mypy_cache .pytest_cache .tox setup.cfg setup.py .vscode \
-		pyrightconfig.json mongita .coverage
+		pyrightconfig.json mongita .coverage .ruff_cache
 
 commit: tests tox
 	@git add -A .

@@ -11,6 +11,8 @@ import warnings
 from typing import Any, Callable, MutableMapping, Protocol
 
 import furl
+import mongita.database
+import mongita.results
 import pymongo.collection
 import pymongo.database
 import pymongo.results
@@ -19,15 +21,13 @@ import rich.pretty
 import rich.traceback
 from bson import ObjectId
 from furl.common import absent as _absent
+from mongita import MongitaClientDisk, MongitaClientMemory
 from pymongo import MongoClient
 from pymongo.command_cursor import CommandCursor
 from pymongo.errors import DuplicateKeyError
 from pymongo.results import UpdateResult
 from requests.auth import HTTPDigestAuth
 
-import mongita.database
-import mongita.results
-from mongita import MongitaClientDisk, MongitaClientMemory
 from mongodata.cursor import Cursor
 
 __all__ = (

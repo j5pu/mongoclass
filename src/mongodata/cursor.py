@@ -1,11 +1,10 @@
 from typing import Callable, Union
 
+import mongita.command_cursor
+import mongita.cursor
 import pymongo.command_cursor
 import pymongo.cursor
 from pymongo.typings import _DocumentType
-
-import mongita.command_cursor
-import mongita.cursor
 
 
 class Cursor:
