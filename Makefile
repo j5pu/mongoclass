@@ -40,11 +40,10 @@ pyenv:
 	@pyenv install 3.11
 	@pyenv install 3.12-dev
 
-retox -p autoquirements:
-	@[ "$${CI-}" ]  && test -d venv || python3.10 -m venv venv
-	@{ [ "$${CI-}" ] || source venv/bin/activate; } && python3 -m pip install --upgrade pip pip-tools && \
-		pip-compile --all-extras --no-annotate --quiet -o /tmp/requirements.txt pyproject.toml && \
-		python3 -m pip  install -r /tmp/requirements.txt
+requirements:
+	@test -d venv || python3.10 -m venv venv
+	@source venv/bin/activate && pip3 install --upgrade huti
+	@venv/bin/dependencies
 
 secrets:
 	@gh secret set GH_TOKEN --body "$$GITHUB_TOKEN"
