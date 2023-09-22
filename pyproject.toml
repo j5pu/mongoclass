@@ -24,6 +24,7 @@ dev = [
     "pip-tools",
     "pyflyby",
     "ruff",
+    "ruff-lsp",
     "twine",
 ]
 
