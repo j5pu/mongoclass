@@ -1,34 +1,5 @@
+"""Mongo Data Class Client Module."""
 from __future__ import annotations
-
-import contextlib
-import copy
-import dataclasses
-import functools
-import inspect
-import json
-import os
-import warnings
-from typing import Any, Callable, MutableMapping, Protocol
-
-import furl
-import mongita.database
-import mongita.results
-import pymongo.collection
-import pymongo.database
-import pymongo.results
-import requests
-import rich.pretty
-import rich.traceback
-from bson import ObjectId
-from furl.common import absent as _absent
-from mongita import MongitaClientDisk, MongitaClientMemory
-from pymongo import MongoClient
-from pymongo.command_cursor import CommandCursor
-from pymongo.errors import DuplicateKeyError
-from pymongo.results import UpdateResult
-from requests.auth import HTTPDigestAuth
-
-from mongodata.cursor import Cursor
 
 __all__ = (
     "CONSOLE",
@@ -39,7 +10,6 @@ __all__ = (
     "client_pymongo",
     "is_testing",
     "mongo_url",
-    "myip",
     "run_if_production",
     "run_in_production",
     "SupportsMongoClass",
@@ -47,6 +17,41 @@ __all__ = (
     "client_constructor",
     "MongoClassClient",
 )
+
+import contextlib
+import copy
+import dataclasses
+import functools
+import inspect
+import json
+import os
+import warnings
+from typing import TYPE_CHECKING, Any, Protocol
+
+import furl
+import mongita.database
+import mongita.results
+import nodeps
+import pymongo.collection
+import pymongo.database
+import pymongo.results
+import requests
+import rich.pretty
+import rich.traceback
+from furl.common import absent as _absent
+from mongita import MongitaClientDisk, MongitaClientMemory
+from pymongo import MongoClient
+from pymongo.errors import DuplicateKeyError
+from requests.auth import HTTPDigestAuth
+
+from .cursor import Cursor
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, MutableMapping
+
+    from bson import ObjectId
+    from pymongo.command_cursor import CommandCursor
+    from pymongo.results import UpdateResult
 
 CONSOLE = rich.console.Console(force_interactive=True, color_system='256')
 MONGOCLASS_TEST_SUFFIX = "-test"
@@ -58,12 +63,11 @@ rich.traceback.install(show_locals=True)
 
 class MongoDataError(Exception):
     """Base class for exceptions in this module."""
-    pass
+
 
 def atlas_api(url, query: dict | None = None, user: str | None = None,
               password: str | None = None, payload=None) -> dict | None:
-    """
-    Atlas API
+    """Atlas API.
 
     Examples:
         >>> from mongodata.client import atlas_api
@@ -74,7 +78,7 @@ def atlas_api(url, query: dict | None = None, user: str | None = None,
 
     Args:
         url: url
-        query:
+        query: query
         user: user
         password: password
         payload: payload
@@ -82,8 +86,8 @@ def atlas_api(url, query: dict | None = None, user: str | None = None,
     user = user if user else os.environ.get("ATLAS_PUBLIC_KEY_MNOPI")
     password = password if password else os.environ.get("ATLAS_PRIVATE_KEY_MNOPI")
     if user is None or password is None:
-        raise MongoDataError(f"user and password must be set or pass as arguments: "
-                             f"{user=}, {password=}")
+        msg = f"user and password must be set or pass as arguments: {user=}, {password=}"
+        raise MongoDataError(msg)
 
     url = furl.furl(f"https://cloud.mongodb.com/api/atlas/v2/{url}",
                     query=(query or {}) | {
@@ -99,8 +103,7 @@ def atlas_api(url, query: dict | None = None, user: str | None = None,
 
 
 def atlas_add_ip(project: str) -> dict | None:
-    """
-    Add ip to project
+    """Add ip to project.
 
     Examples:
         >>> from mongodata.client import atlas_add_ip
@@ -118,13 +121,12 @@ def atlas_add_ip(project: str) -> dict | None:
             group_id = item["id"]
             break
     if group_id is None:
-        raise MongoDataError(f"{project=} not found")
+        msg = f"{project=} not found"
+        raise MongoDataError(msg)
 
-    payload = json.dumps([{"cidrBlock": f"{myip()}/32"}])
+    payload = json.dumps([{"cidrBlock": f"{nodeps.mip()}/32"}])
 
-    response = atlas_api(f"groups/{group_id}/accessList", payload=payload)
-
-    return response
+    return atlas_api(f"groups/{group_id}/accessList", payload=payload)
 
 
 def client_mongoclass(
@@ -137,8 +139,7 @@ def client_mongoclass(
         scheme: dict = _absent,
         username: str = _absent,
 ) -> SupportsMongoClassClient | (MongoClient | pymongo.database.Database):
-    """
-    Returns a MongoClient
+    """Returns a MongoClient.
 
     Examples:
         >>> from mongodata.client import client_mongoclass
@@ -184,8 +185,7 @@ def client_pymongo(
         scheme: dict = _absent,
         username: str = _absent,
 ) -> MongoClient:
-    """
-    Returns a MongoClient
+    """Returns a MongoClient.
 
     Examples:
         >>> from mongodata.client import client_pymongo
@@ -215,8 +215,7 @@ def client_pymongo(
 
 
 def is_testing() -> bool:
-    """
-    True if env var `MONGOCLASS_PRODUCTION` is None or any of pytest, docrunner, unittest, PyCharm in callers filenames.
+    """True if global `MONGOCLASS_PRODUCTION` is None or any: pytest, docrunner, unittest, PyCharm in callers filenames.
 
     Examples:
         >>> from mongodata.client import is_testing
@@ -242,8 +241,7 @@ def mongo_url(
         scheme: dict = _absent,
         username: str = _absent,
 ) -> str:
-    """
-    Returns atlas url for connection
+    """Returns atlas url for connection.
 
     Examples:
         >>> from mongodata.client import mongo_url
@@ -278,22 +276,8 @@ def mongo_url(
     ).url.replace("?", "/?")
 
 
-def myip() -> str | None:
-    """
-    Atlas API
-
-    Examples:
-        >>> from mongodata.client import myip
-        >>>
-        >>> myip()  # doctest: +ELLIPSIS
-        '...............'
-    """
-    return requests.get("https://checkip.amazonaws.com", timeout=2).text.strip()
-
-
 def run_if_production(func):
-    """
-    A decorator that will run the function if TESTING is False.
+    """A decorator that will run the function if TESTING is False.
 
     Examples:
         >>> from mongodata.client import is_testing
@@ -314,7 +298,7 @@ def run_if_production(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         if is_testing():
-            return
+            return None
         return func(*args, **kwargs)
 
     return wrapper
@@ -322,8 +306,7 @@ def run_if_production(func):
 
 @contextlib.contextmanager
 def run_in_production():
-    """
-    A context manager that will set TESTING to False.
+    """A context manager that will set TESTING to False.
 
     Examples:
         >>> with run_in_production():
@@ -336,6 +319,7 @@ def run_in_production():
 
 
 class SupportsMongoClass(Protocol):
+    """SupportsMongoClass protocol."""
     COLLECTION_NAME: str
     DATABASE_NAME: str
     _mongodb_collection: str
@@ -344,98 +328,108 @@ class SupportsMongoClass(Protocol):
     _mongodb_id: ObjectId
 
     @property
-    def collection(self) -> pymongo.collection.Collection:
+    def collection(self) -> pymongo.collection.Collection:  # noqa: D102
         return ...
 
-    def createIndex(self, field: str): ...
+    def createIndex(self, field: str): ...  # noqa: D102, N802
 
-    def distinct(self, field: str, query: dict) -> list[str | (int | (dict | list))]: ...
+    def distinct(self, field: str, query: dict) -> list[str | (int | (dict | list))]: ...  # noqa: D102
 
-    def find(self, *args, **kwargs) -> Cursor: ...
+    def find(self, *args, **kwargs) -> Cursor: ...  # noqa: D102
 
-    def getIndexes(self) -> CommandCursor[MutableMapping[str, Any]]: ...
+    def getIndexes(self) -> CommandCursor[MutableMapping[str, Any]]: ...  # noqa: D102, N802
 
-    def has(self) -> bool: ...
-
-    @property
-    def id(self) -> ObjectId:
-        return ...
+    def has(self) -> bool: ...  # noqa: D102
 
     @property
-    def indexName(self) -> str | None:
+    def id(self) -> ObjectId:  # noqa: D102, A003
         return ...
 
     @property
-    def indexValue(self) -> int | (str | (dict | list)):
+    def indexName(self) -> str | None:  # noqa: D102, N802
         return ...
 
     @property
-    def mongodb_client(self) -> MongoClient | (MongitaClientDisk | MongitaClientMemory):
+    def indexValue(self) -> int | (str | (dict | list)):  # noqa: D102, N802
         return ...
 
     @property
-    def mongodb_db(self) -> pymongo.database.Database | mongita.database.Database:
+    def mongodb_client(self) -> MongoClient | (MongitaClientDisk | MongitaClientMemory):  # noqa: D102
+        return ...
+
+    @property
+    def mongodb_db(self) -> pymongo.database.Database | mongita.database.Database:  # noqa: D102
         return ...
 
     @mongodb_db.setter
     def mongodb_db(self, value: str | pymongo.database.Database | None):
         ...
 
-    def one(self) -> dict | None: ...
+    def one(self) -> dict | None: ...  # noqa: D102
 
-    def rm(self) -> pymongo.results.DeleteResult | mongita.results.DeleteResult: ...
+    def rm(self) -> pymongo.results.DeleteResult | mongita.results.DeleteResult: ...  # noqa: D102
 
-    def insert(self, *args, **kwargs) -> dict: ...
+    def insert(self, *args, **kwargs) -> dict: ...  # noqa: D102
 
-    def update(self, operation: dict, *args, **kwargs) -> tuple[
+    def update(  # noqa: D102
+            self,
+            operation: dict,
+            *args,
+            **kwargs
+    ) -> tuple[
         UpdateResult | mongita.results.UpdateResult, object,
     ]: ...
 
-    def save(self, *args, **kwargs) -> tuple[
+    def save(  # noqa: D102
+            self,
+            *args,
+            **kwargs
+    ) -> tuple[
         UpdateResult | (pymongo.results.InsertOneResult |
                         (mongita.results.InsertOneResult | mongita.results.UpdateResult)),
         object,
     ]: ...
 
-    def delete(self, *args, **kwargs) -> pymongo.results.DeleteResult | mongita.results.DeleteResult: ...
+    def delete(self, *args, **kwargs) -> pymongo.results.DeleteResult | mongita.results.DeleteResult: ...  # noqa: D102
 
     @staticmethod
-    def count_documents(*args, **kwargs) -> int: ...
+    def count_documents(*args, **kwargs) -> int: ...  # noqa: D102
 
     @staticmethod
-    def find_class(*args, database: str | (pymongo.database.Database | mongita.database.Database) | None = ...,
-                   **kwargs,
-                   ) -> object | None: ...
+    def find_class(  # noqa: D102
+            *args, database: str | (pymongo.database.Database | mongita.database.Database) | None = ...,
+            **kwargs,
+    ) -> object | None: ...
 
     find_one = find_class
 
     @staticmethod
-    def aggregate(
+    def aggregate(  # noqa: D102
             *args,
             database: str | (pymongo.database.Database | mongita.database.Database) | None = ...,
             **kwargs,
     ) -> Cursor: ...
 
     @staticmethod
-    def paginate(
+    def paginate(  # noqa: D102
             *args,
             database: str | (pymongo.database.Database | mongita.database.Database) | None = ...,
-            pre_call: Callable | None = ...,
+            pre_call: Callable = ...,
             page: int,
             size: int,
             **kwargs,
     ) -> Cursor: ...
 
     @staticmethod
-    def find_classes(
+    def find_classes(  # noqa: D102
             *args,
             database: str | (pymongo.database.Database | mongita.database.Database) | None = ...,
             **kwargs,
     ) -> Cursor: ...
 
-    def as_json(self, perform_nesting: bool = ...) -> dict: ...
+    def as_json(self, perform_nesting: bool = ...) -> dict: ...  # noqa: D102
 
-    def insert_classes(
+    def insert_classes(  # noqa: D102
             self, mongoclasses: object | list[object], *args, **kwargs
     ) -> pymongo.results.InsertOneResult | (pymongo.results.InsertManyResult |
                                             list[pymongo.results.InsertOneResult]): ...
@@ -444,25 +438,34 @@ class SupportsMongoClass(Protocol):
 
 
 class SupportsMongoClassClient(Protocol):
+    """SupportsMongoClassClient protocol."""
     mapping: dict = ...
     default_database: pymongo.database.Database
     _default_db_name: str = ...
 
     @property
-    def default_db_name(self) -> str:
+    def default_db_name(self) -> str:  # noqa: D102
         return ...
 
     @default_db_name.setter
     def default_db_name(self, value: str) -> None: ...
 
-    def choose_database(self, database: str | (pymongo.database.Database | mongita.database.Database) | None = ...)\
-            -> pymongo.database.Database | mongita.database.Database: ...
+    def choose_database(  # noqa: D102
+            self,
+            database: str | (pymongo.database.Database | mongita.database.Database) | None = ...
+    ) -> pymongo.database.Database | mongita.database.Database: ...
 
-    def get_db(self, database: str) -> pymongo.database.Database | mongita.database.Database: ...
+    def get_db(self, database: str) -> pymongo.database.Database | mongita.database.Database: ...  # noqa: D102
 
-    def map_document(self, data: dict, collection: str, database: str, force_nested: bool = ...) -> object: ...
+    def map_document(  # noqa: D102
+            self,
+            data: dict,
+            collection: str,
+            database: str,
+            force_nested: bool = ...
+    ) -> object: ...
 
-    def mongoclass(
+    def mongoclass(  # noqa: D102
             self,
             collection: str | None = ...,
             database: str | pymongo.database.Database | None = ...,
@@ -470,7 +473,7 @@ class SupportsMongoClassClient(Protocol):
             nested: bool = ...,
     ) -> Callable | SupportsMongoClass: ...
 
-    def find_class(
+    def find_class(  # noqa: D102
             self,
             collection: str,
             *args,
@@ -478,38 +481,50 @@ class SupportsMongoClassClient(Protocol):
             **kwargs,
     ) -> object | None: ...
 
-    def find_classes(self, collection: str, *args, database: str | (
-            pymongo.database.Database | mongita.database.Database) | None = ..., **kwargs,
-                     ) -> Cursor: ...
+    def find_classes(  # noqa: D102
+            self,
+            collection: str,
+            *args,
+            database: str | (
+                    pymongo.database.Database | mongita.database.Database) | None = ...,
+            **kwargs,
+    ) -> Cursor: ...
 
-    def insert_classes(
-            self, mongoclasses: object | (pymongo.collection.Collection | list[object]), *args, **kwargs
+    def insert_classes(  # noqa: D102
+            self,
+            mongoclasses: object | (pymongo.collection.Collection | list[object]),
+            *args,
+            **kwargs
     ) -> pymongo.results.InsertOneResult | (pymongo.results.InsertManyResult | list[
         pymongo.results.InsertOneResult]): ...
 
     insert_many = insert_classes
 
+
 # noinspection PyPep8Naming
-def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient | (
-        MongoClient | pymongo.database.Database):
+def client_constructor(  # noqa: D103
+        engine: str,
+        *args,
+        **kwargs
+) -> SupportsMongoClassClient | MongoClient | pymongo.database.Database:
     if engine == "pymongo":
-        Engine = MongoClient
+        engine = MongoClient
     elif engine == "mongita_disk":
-        Engine = MongitaClientDisk
+        engine = MongitaClientDisk
     elif engine == "mongita_memory":
-        Engine = MongitaClientMemory
+        engine = MongitaClientMemory
     else:
-        raise ValueError(f"Invalid engine '{engine}'")
+        msg = f"Invalid engine '{engine}'"
+        raise ValueError(msg)
 
     # noinspection PyShadowingNames
-    class MongoClassClientClass(Engine):  # type: ignore
-        """
-        Parameters
-        ----------
-        `default_db_name` : str
-            The name of the default database.
-        `*args, **kwargs` :
-            To be passed onto `MongoClient()` or `MongitaClientDisk()`
+    class MongoClassClientClass(engine):
+        """Mongo Class Client.
+
+        Arguments:
+            default_db_name: The name of the default database.
+            *args: To be passed onto `MongoClient()` or `MongitaClientDisk()`
+            **kwargs: To be passed onto `MongoClient()` or `MongitaClientDisk()`
         """
 
         def __init__(self, default_db_name: str = "main", *args, **kwargs) -> None:
@@ -524,22 +539,16 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
 
         @property
         def default_db_name(self) -> str:
-            """
-            Get the name of the default database.
+            """Get the name of the default database.
 
-            Returns
-            -------
-            `str` :
+            Returns:
                 The name of the default database.
             """
-
             return self._default_db_name
 
         @default_db_name.setter
         def default_db_name(self, value: str) -> None:
-            """
-            Sets default database name based on whether is testing
-            """
+            """Sets default database name based on whether is testing."""
             if is_testing():
                 self._default_db_name = value if MONGOCLASS_TEST_SUFFIX in value else f"{value}{MONGOCLASS_TEST_SUFFIX}"
             else:
@@ -552,7 +561,7 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
             if database is None:
                 return self.default_database
             if isinstance(
-                database, (pymongo.database.Database, mongita.database.Database)
+                    database, (pymongo.database.Database | mongita.database.Database)
             ):
                 return database
             return self[database]
@@ -562,42 +571,31 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
         def get_db(
                 self, database: str
         ) -> pymongo.database.Database | mongita.database.Database:
-            """
-            Get a database. Equivalent to `client["database"]`. This method exists simply because type hinting seems
-            to be broken, nothing more.
+            """Get a database. Equivalent to `client["database"]`.
 
-            Parameters
-            ----------
-            `database` : str
-                The name of the database.
+            This method exists simply because type hinting seems to be broken, nothing more
 
-            Returns
-            -------
-            `Union[pymongo.database.Database, mongita.database.Database]` :
+            Arguments:
+                database: str The name of the database.
+
+            Returns:
                 The `Database` object of the underlying engine.
             """
-
             return self[database]
 
         def map_document(
                 self, data: dict, collection: str, database: str, force_nested: bool = False
         ) -> object:
-            """
-            Map a raw document into a mongoclass.
+            """Map a raw document into a mongoclass.
 
-            Parameters
-            ----------
-            `data` : dict
-                The raw document coming from a collection.
-            `collection` : str
-                The collection this maps to. The collection then maps onto an actual mongoclass object.
-            `database` : str
-                The database the raw document belongs to.
-            `force_nested` : bool
-                Forcefully tell mongoclass that this document is a nested document and it contains other mongoclasses
-                inside it. Defaults to False. Usually this parameter is only set in a recursive manner.
+            Arguments:
+                data: The raw document coming from a collection.
+                collection: The collection this maps to. The collection then maps onto an actual mongoclass object.
+                database: The database the raw document belongs to.
+                force_nested: Forcefully tell mongoclass that this document is a nested document
+                    and it contains other mongoclasses inside it. Defaults to False.
+                    Usually this parameter is only set in a recursive manner.
             """
-
             cls = self.mapping[database][collection]
             if cls["nested"] or force_nested:
                 for k, v in copy.copy(data).items():
@@ -636,25 +634,23 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                 insert_on_init: bool = False,
                 nested: bool = False,
         ) -> Callable:
-            """
-            A decorator used to map a dataclass onto a collection.
+            """A decorator used to map a dataclass onto a collection.
+
             In other words, it converts the dataclass onto a mongoclass.
 
-            Parameters
-            ----------
-            `collection` : str
-                The collection the class must map to. Defaults to the name of the class but lowered.
-            `database` : Union[str, Database]
-                The database to use. Defaults to the default database.
-            `insert_on_init` : bool
-                Whether to automatically insert a mongoclass into mongodb whenever a mongoclass instance is created.
-                Defaults to True. This is the equivalent of passing `_insert=True` every time you create a mongoclass
-                instance.
-                This can also be overwritten by setting `_insert=False`
-            `nested` : bool
-                Whether this mongoclass has other mongoclasses inside it. Nesting is not automatically determined for
-                performance purposes. Defaults to False.
-
+            Arguments:
+                collection:
+                    The collection the class must map to. Defaults to the name of the class but lowered.
+                database : Union[str, Database]
+                    The database to use. Defaults to the default database.
+                insert_on_init:
+                    Whether to automatically insert a mongoclass into mongodb whenever a mongoclass instance is created.
+                    Defaults to True. This is the equivalent of passing `_insert=True` every time you
+                    create a mongoclass instance.
+                    This can also be overwritten by setting `_insert=False`
+                nested:
+                    Whether this mongoclass has other mongoclasses inside it. Nesting is not automatically
+                    determined for performance purposes. Defaults to False.
             """
             db = self.__choose_database(database)
 
@@ -683,11 +679,11 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                             this.insert()
 
                     def collection(this) -> pymongo.collection.Collection:
-                        """returns collection object"""
+                        """Returns collection object."""
                         return this.mongodb_db[this._mongodb_collection]
 
-                    def createIndex(self, field: str) -> str:
-                        """creates an unique index
+                    def createIndex(self, field: str) -> str:  # noqa: N802
+                        """Creates an unique index.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
@@ -703,8 +699,7 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                         return self.collection().create_index(field, unique=True)
 
                     def distinct(this, field: str, query: dict | None = None) -> list[str | (int | (dict | list))]:
-                        """
-                        returns distinct values
+                        """Returns distinct values.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
@@ -718,8 +713,7 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                         return this.collection().distinct(field, query)
 
                     def find(self, *fargs, **fkwargs) -> Cursor:
-                        """
-                        returns find
+                        """Returns find.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
@@ -730,14 +724,13 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                             [{'email': 'john@gmail.com'}]
 
                         Args:
-                            *fargs:
-                            **fkwargs:
+                            *fargs: args to pass to find
+                            **fkwargs: kwargs to pass to find
                         """
                         return self.collection().find(*fargs, **fkwargs)
 
-                    def getIndexes(this) -> CommandCursor[MutableMapping[str, Any]]:
-                        """
-                        returns indexes
+                    def getIndexes(this) -> CommandCursor[MutableMapping[str, Any]]:  # noqa: N802
+                        """Returns indexes.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
@@ -749,8 +742,7 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                         return this.collection().list_indexes()
 
                     def has(this) -> bool:
-                        """
-                        Returns True if this object is inserted
+                        """Returns True if this object is inserted.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
@@ -763,9 +755,8 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                         """
                         return bool(this.one())
 
-                    def id(this) -> ObjectId:
-                        """
-                        Returns the ObjectId
+                    def id(this) -> ObjectId:  # noqa: A003
+                        """Returns the ObjectId.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
@@ -774,66 +765,60 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                             >>> user.insert()  # doctest: +SKIP
                             >>> user.id()  # doctest: +SKIP
                             '64f48d7f12247320a50db63b'
-
-
                         """
                         return this._mongodb_id
 
-                    def indexValue(this) -> int | (str | (dict | list)):
-                        """
-                        Returns the unique index value of the instance
+                    def indexValue(this) -> int | str | dict | list | None:  # noqa: N802
+                        """Returns the unique index value of the instance.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
                             >>> user.indexValue()  # doctest: +SKIP
                             "john@gmail.com"
-
                         """
                         if one := this.one():
                             return one.get(this.indexName())
+                        return None
 
-                    def indexName(this) -> str | None:
-                        """
-                        Returns the unique index name
+                    def indexName(this) -> str | None:  # noqa: N802
+                        """Returns the unique index name.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
-                            >>> user.indexName()  # doctest: +SKIP
+                            >>> user.indexName()  # doctest: +SKIP # noqa: N802
                             "email"
-
                         """
                         for i in this.getIndexes():
                             if i.get("unique"):
                                 return next(iter(i.get("key").keys()))
+                        return None
 
                     @property
                     def mongodb_client(self) -> MongoClient | (MongitaClientDisk | MongitaClientMemory):
-                        """mongo db client"""
+                        """Mongo db client."""
                         return self._mongodb_client
 
                     # noinspection PyPropertyDefinition
                     @property
                     def mongodb_db(this) -> pymongo.database.Database | mongita.database.Database:
-                        """mongo db instance adds test if running in test"""
+                        """Mongo db instance adds test if running in test."""
                         return this._mongodb_db
 
                     # noinspection PyPropertyDefinition
                     @mongodb_db.setter
                     def mongodb_db(this, value: str | pymongo.database.Database | None):
-                        """mongo db instance adds -test if running is test"""
-                        if isinstance(value, (pymongo.database.Database, mongita.database.Database)):
+                        """Mongo db instance adds -test if running is test."""
+                        if isinstance(value, (pymongo.database.Database | mongita.database.Database)):
                             this._mongodb_db = value
+                        elif is_testing():
+                            this._mongodb_db = this._mongodb_client[
+                                value if MONGOCLASS_TEST_SUFFIX in value else f"{value}{MONGOCLASS_TEST_SUFFIX}"]
                         else:
-                            if is_testing():
-                                this._mongodb_db = this._mongodb_client[
-                                    value if MONGOCLASS_TEST_SUFFIX in value else f"{value}{MONGOCLASS_TEST_SUFFIX}"]
-                            else:
-                                this._mongodb_db = this._mongodb_client[
-                                    value.replace(MONGOCLASS_TEST_SUFFIX, "")]
+                            this._mongodb_db = this._mongodb_client[
+                                value.replace(MONGOCLASS_TEST_SUFFIX, "")]
 
                     def one(self) -> dict | None:
-                        """
-                        Find is this object is inserted
+                        """Find is this object is inserted.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
@@ -848,8 +833,8 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                         return self.collection().find_one(self.as_json())
 
                     def rm(self) -> pymongo.results.DeleteResult | mongita.results.DeleteResult:
-                        """
-                        Delete instance/one
+                        """Delete instance/one.
+
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
                             >>> user = User("John Howard", "john@gmail.com", 8771, "PH") # doctest: +SKIP
@@ -866,30 +851,26 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                     def insert(
                             this, *args, **kwargs
                     ) -> dict | object:
-                        """
-                        Insert this mongoclass as a document in the collection.
+                        """Insert this mongoclass as a document in the collection.
 
                         In case DuplicateKeyError then it will save to update
 
-                        Parameters
-                        ----------
-                        `*args, **kwargs` :
-                            Other parameters to be passed onto `Database.insert_one`
+                        Arguments:
+                            *args: Other parameters to be passed onto `Database.insert_one`
+                            **kwargs: Other parameters to be passed onto `Database.insert_one`
 
-                        Returns
-                        -------
-                        `InsertOneResult`
+                        Returns:
+                            `InsertOneResult`
                         """
                         try:
                             if query := this.mongodb_db[this._mongodb_collection].find_one(this.as_json()):
                                 this._mongodb_id = query["_id"]
                                 return query
-                            else:
-                                res = this.mongodb_db[this._mongodb_collection].insert_one(
-                                    this.as_json(), *args, **kwargs
-                                )
-                                this._mongodb_id = res.inserted_id
-                                return this.mongodb_db[this._mongodb_collection].find_one({"_id": this._mongodb_id})
+                            res = this.mongodb_db[this._mongodb_collection].insert_one(
+                                this.as_json(), *args, **kwargs
+                            )
+                            this._mongodb_id = res.inserted_id
+                            return this.mongodb_db[this._mongodb_collection].find_one({"_id": this._mongodb_id})
                         except (DuplicateKeyError, mongita.errors.DuplicateKeyError):
                             data = this.as_json()
                             result, new = this.update({"$set": data}, *args, return_new=True, **kwargs)
@@ -901,8 +882,7 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                         UpdateResult | mongita.results.UpdateResult,
                         object,
                     ]:
-                        """
-                        Update this mongoclass document in the collection.
+                        """Update this mongoclass document in the collection..
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
@@ -910,21 +890,20 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                             >>> john.insert()  # doctest: +SKIP
                             >>> # Let's change john's country to UK
                             >>> update_result, new_john = john.update( {"$set": {"country": "UK"}}, \
-                                return_new=True)  # doctest: +SKIP                        Parameters
-                        ----------
-                        `operation` : dict
-                            The operation to be made.
-                        `return_new` : bool
+                                return_new=True)  # doctest: +SKIP
+
+                        Arguments:
+                        operation: The operation to be made.
+                        return_new:
                             Whether to return a brand new class containing the updated data. Defaults to False. If
                             this is false, the same object is returned.
-                        `*args, **kwargs` :
-                            Other parameters to be passed onto `Collection.update_one`
+                        *args: Other parameters to be passed onto `Collection.update_one`
+                        **kwargs: Other parameters to be passed onto `Collection.update_one`
 
-                        Returns
-                        -------
-                        `Tuple[UpdateResult, Optional[object]]`
+
+                        Returns:
+                            `Tuple[UpdateResult, Optional[object]]`
                         """
-
                         return_new = kwargs.pop("return_new", True)
 
                         res = this.mongodb_db[this._mongodb_collection].update_one(
@@ -944,36 +923,34 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
 
                     def save(
                             this, *args, **kwargs
-                    ) -> tuple[dict | object, Inner] | tuple[UpdateResult | UpdateResult, object]:
-                        """
-                        Update this mongoclass document in the collection with the current state of the object.
+                    ) -> tuple[dict | object, Inner] | tuple[UpdateResult, object]:
+                        """Update this mongoclass document in the collection with the current state of the object.
 
                         If this document doesn't exist yet, it will just call `.insert()`
 
                         Here's a comparison of `.save()` and `.update()` doing the same exact thing.
 
-                        >>> # Using .update()
-                        >>> # noinspection PyUnresolvedReferences
-                        >>> user.update({"$set": {"name": "Robert Downey"}})
-                        >>>
-                        >>> # Using .save()
-                        >>> # noinspection PyUnresolvedReferences
-                        >>> user.name = "Robert Downey"
-                        >>> # noinspection PyUnresolvedReferences
-                        >>> user.save()
+                        Examples:
+                            >>> # Using .update()
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user.update({"$set": {"name": "Robert Downey"}})
+                            >>>
+                            >>> # Using .save()
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user.name = "Robert Downey"
+                            >>> # noinspection PyUnresolvedReferences
+                            >>> user.save()
 
                         Under the hood, this is just calling .update() using the set operator.
 
-                        Parameters
-                        ----------
-                        `*args, **kwargs` :
-                            To be passed onto `.update()`
+                        Arguments:
+                        *args: To be passed onto `.update()`
+                        **kwargs: To be passed onto `.update()`
 
-                        Returns
-                        -------
-                        `Tuple[Union[UpdateResult, InsertResult], object]`
+
+                        Returns:
+                            `Tuple[Union[UpdateResult, InsertResult], object]`
                         """
-
                         if not this._mongodb_id:
                             return this.insert(), this
 
@@ -983,43 +960,36 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                     def delete(
                             this, *args, **kwargs
                     ) -> pymongo.results.DeleteResult | mongita.results.DeleteResult:
+                        """Delete this mongoclass in the collection.
+
+                        Arguments:
+                            *args: To be passed onto `Collection.delete_one`
+                            **kwargs: To be passed onto `Collection.delete_one`
+
+
+                        Returns:
+                            `DeleteResult`
                         """
-                        Delete this mongoclass in the collection.
-
-                        Parameters
-                        ----------
-                        `*args, **kwargs` :
-                            To be passed onto `Collection.delete_one`
-
-                        Returns
-                        -------
-                        `DeleteResult`
-                        """
-
                         return this.mongodb_db[this._mongodb_collection].delete_one(
                             {"_id": this._mongodb_id}, *args, **kwargs
                         )
 
                     @staticmethod
                     def count_documents(*args, **kwargs) -> int:
-                        """
-                        Count the number of documents in this collection.
+                        """Count the number of documents in this collection.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
                             >>> user.count_documents({})  # doctest: +SKIP
                             1
 
-                        Parameters
-                        ----------
-                        `*args, **kwargs` :
-                            To be passed onto `Collection.count_documents`
+                        Arguments:
+                        *args: To be passed onto `Collection.count_documents`
+                        **kwargs: To be passed onto `Collection.count_documents`
 
-                        Returns
-                        -------
-                        `int`
+                        Returns:
+                            `int`
                         """
-
                         return db[collection_name].count_documents(*args, **kwargs)
 
                     @staticmethod
@@ -1028,9 +998,9 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
                             database: str | (pymongo.database.Database | mongita.database.Database) | None = None,
                             **kwargs,
                     ) -> object | None:
-                        """
-                        Find a single document from this class and convert it onto a mongoclass that maps to the
-                        collection of the document.
+                        """Find a single document from this class and convert it onto a mongoclass.
+
+                        That maps to the collection of the document.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
@@ -1042,21 +1012,14 @@ def client_constructor(engine: str, *args, **kwargs) -> SupportsMongoClassClient
 email='john@gmail.com', phone=8771, country='PH')
 
 
-                        Parameters
-                        ----------
-                        `*args` :
-                            Arguments to pass onto `find_one`.
-                        `database` : Union[str, Database]
-                            The database to use. Defaults to the default database.
-                        `**kwargs` :
-                            Keyword arguments to pass onto `find_one`.
+                        Arguments:
+                            *args: Arguments to pass onto `find_one`.
+                            database: The database to use. Defaults to the default database.
+                            **kwargs: Keyword arguments to pass onto `find_one`.
 
-                        Returns
-                        -------
-                        `Optional[object]` :
-                            The mongoclass containing the document's data if it exists.
+                        Returns:
+                            `Optional[object]`: The mongoclass containing the document's data if it exists.
                         """
-
                         return self.find_class(
                             collection_name, *args, database, **kwargs
                         )
@@ -1082,7 +1045,7 @@ email='john@gmail.com', phone=8771, country='PH')
                     def paginate(
                             *args,
                             database: str | (pymongo.database.Database | mongita.database.Database) | None = None,
-                            pre_call: Callable | None = None,
+                            pre_call=None,
                             page: int,
                             size: int,
                             **kwargs,
@@ -1096,9 +1059,7 @@ email='john@gmail.com', phone=8771, country='PH')
                         if pre_call:
                             cursor = pre_call(cursor)
 
-                        results = cursor.skip(skip).limit(size)
-
-                        return results
+                        return cursor.skip(skip).limit(size)
 
                     @staticmethod
                     def find_classes(
@@ -1106,9 +1067,9 @@ email='john@gmail.com', phone=8771, country='PH')
                             database: str | (pymongo.database.Database | mongita.database.Database) | None = None,
                             **kwargs,
                     ) -> Cursor:
-                        """
-                        Find multiple document from this class s and return a `Cursor` that you can iterate over that
-                        contains the documents as a mongoclass.
+                        """Find multiple document from this class s and return a `Cursor` that you can iterate over.
+
+                         That contains the documents as a mongoclass.
 
                         Examples:
                             >>> # noinspection PyUnresolvedReferences
@@ -1119,31 +1080,24 @@ email='john@gmail.com', phone=8771, country='PH')
                             <mongoclass.cursor.Cursor object at 0x1102d7cd0>
 
 
-                        Parameters
-                        ----------
-                        `*args` :
-                            Arguments to pass onto `find`.
-                        `database` : Union[str, Database]
-                            The database to use. Defaults to the default database.
-                        `**kwargs` :
-                            Keyword arguments to pass onto `find`.
+                        Arguments:
+                            *args: Arguments to pass onto `find`.
+                            database: The database to use. Defaults to the default database.
+                            **kwargs:  Keyword arguments to pass onto `find`.
 
-                        Returns
-                        -------
-                        `Cursor`:
-                            A cursor similar to pymongo that you can iterate over to get the results.
+                        Returns:
+                            `Cursor`: A cursor similar to pymongo that you can iterate over to get the results.
                         """
-
                         return self.find_classes(
                             collection_name, *args, database, **kwargs
                         )
 
                     def as_json(this, perform_nesting: bool = nested) -> dict:
-                        """
-                        Convert this mongoclass into a json serializable object. This will pop mongodb and mongoclass
-                        reserved attributes such as _mongodb_id, _mongodb_collection, etc.
-                        """
+                        """Convert this mongoclass into a json serializable object.
 
+                        This will pop mongodb and mongoclass reserved attributes such as _mongodb_id, _
+                        mongodb_collection, etc.
+                        """
                         x = copy.copy(this.__dict__)
                         x.pop("_mongodb_collection", None)
                         x.pop("_mongodb_client", None)
@@ -1159,10 +1113,8 @@ email='john@gmail.com', phone=8771, country='PH')
                             }
 
                         def get_as_json(v):
-                            method = None
                             with contextlib.suppress(AttributeError):
-                                method = v.as_json
-                            return method
+                                return v.as_json
 
                         if perform_nesting:
                             for k, v in copy.copy(x).items():
@@ -1203,30 +1155,21 @@ email='john@gmail.com', phone=8771, country='PH')
                 database: str | (pymongo.database.Database | mongita.database.Database) | None = None,
                 **kwargs,
         ) -> object | None:
+            """Find a single document and convert it onto a mongoclass that maps to the collection of the document.
+
+            Arguments:
+                collection: The collection to use.
+                *args: Arguments to pass onto `find_one`.
+                database: The database to use. Defaults to the default database.
+                **kwargs: Keyword arguments to pass onto `find_one`.
+
+            Returns:
+                `Optional[object]`: The mongoclass containing the document's data if it exists.
             """
-            Find a single document and convert it onto a mongoclass that maps to the collection of the document.
-
-            Parameters
-            ----------
-            `collection` : str
-                The collection to use.
-            `*args` :
-                Arguments to pass onto `find_one`.
-            `database` : Union[str, Database]
-                The database to use. Defaults to the default database.
-            `**kwargs` :
-                Keyword arguments to pass onto `find_one`.
-
-            Returns
-            -------
-            `Optional[object]` :
-                The mongoclass containing the document's data if it exists.
-            """
-
             db = self.__choose_database(database)
             query = db[collection].find_one(*args, **kwargs)
             if not query:
-                return
+                return None
             return self.map_document(query, collection, db.name)
 
         find_one = find_class
@@ -1238,43 +1181,36 @@ email='john@gmail.com', phone=8771, country='PH')
                 database: str | (pymongo.database.Database | mongita.database.Database) | None = None,
                 **kwargs,
         ) -> Cursor:
+            """Find multiple documents and return a `Cursor` that you can iterate over that contains the documents.
+
+            As a mongoclass.
+
+            Arguments:
+                collection: The collection to use.
+                *args: Arguments to pass onto `find`.
+                database: The database to use. Defaults to the default database.
+                **kwargs: Keyword arguments to pass onto `find`.
+
+            Returns:
+                `Cursor`: A cursor similar to pymongo that you can iterate over to get the results.
             """
-            Find multiple documents and return a `Cursor` that you can iterate over that contains the documents as a
-            mongoclass.
-
-            Parameters
-            ----------
-            `collection` : str
-                The collection to use.
-            `*args` :
-                Arguments to pass onto `find`.
-            `database` : Union[str, Database]
-                The database to use. Defaults to the default database.
-            `**kwargs` :
-                Keyword arguments to pass onto `find`.
-
-            Returns
-            -------
-            `Cursor`:
-                A cursor similar to pymongo that you can iterate over to get the results.
-            """
-
             db = self.__choose_database(database)
             query = db[collection].find(*args, **kwargs)
-            cursor = Cursor(
+            return Cursor(
                 query, self.map_document, collection, db.name, self._engine_used
             )
-            return cursor
 
         # noinspection PyMethodMayBeStatic
         def insert_classes(
-                self, mongoclasses: object | (pymongo.collection.Collection | list[object]), *args, **kwargs
-        ) -> pymongo.results.InsertOneResult | (pymongo.results.InsertManyResult | list[
-            pymongo.results.InsertOneResult]):
-            """
-            Insert a mongoclass or a list of mongoclasses into its respective collection and database. This method
-            can accept mongoclasses with different collections and different databases as long as `insert_one` is
-            `True`.
+                self,
+                mongoclasses: object | (pymongo.collection.Collection | list[object]),
+                *args,
+                **kwargs
+        ) -> pymongo.results.InsertOneResult | pymongo.results.InsertManyResult | list[pymongo.results.InsertOneResult]:
+            """Insert a mongoclass or a list of mongoclasses into its respective collection and database.
+
+            This method can accept mongoclasses with different collections and different databases as
+            long as `insert_one` is `True`.
 
             Examples:
                 >>> # noinspection PyUnresolvedReferences
@@ -1283,30 +1219,24 @@ email='john@gmail.com', phone=8771, country='PH')
                 >>> # noinspection PyUnresolvedReferences
                 >>> client.insert_classes(users)  # docstring: +SKIP
 
-            Notes
-            -----
-            - If you're inserting multiple mongoclasses with `insert_one=False` and `ordered=False`, the provided
-            mongoclasses will be mutated by setting a `_mongodb_id` attribute with the id coming from
-            `InsertManyResult` after this method executes.
+            Notes:
+                If you're inserting multiple mongoclasses with `insert_one=False` and `ordered=False`, the provided
+                mongoclasses will be mutated by setting a `_mongodb_id` attribute with the id coming from
+                `InsertManyResult` after this method executes.
 
-            Parameters
-            ----------
-            `mongoclasses` : Union[object, List[object]]
-                A list of mongoclasses or a single mongoclass. When inserting a single mongoclass, you can just do
-                `mongoclass.insert()`
-            `insert_one` : bool
-                Whether to call `mongoclass.insert()` on each mongoclass. Defaults to False. False means it would use
-                `Collection.insert_many` to insert all the documents at once.
-            `*args, **kwargs` :
-                To be passed onto `Collection.insert_many` or `mongoclass.insert()`
+            Arguments:
+            mongoclasses: A list of mongoclasses or a single mongoclass. When inserting a single mongoclass,
+                you can just do `mongoclass.insert()`
+            insert_one: Whether to call `mongoclass.insert()` on each mongoclass. Defaults to False.
+                False means it would use `Collection.insert_many` to insert all the documents at once.
+            *args: To be passed onto `Collection.insert_many` or `mongoclass.insert()`
+            **kwargs: To be passed onto `Collection.insert_many` or `mongoclass.insert()`
 
-            Returns
-            -------
-            `Union[InsertOneResult, InsertManyResult, List[InsertOneResult]]` :
+            Returns:
+            `Union[InsertOneResult, InsertManyResult, List[InsertOneResult]]`:
                 - A `InsertOneResult` if the provided `mongoclasses` parameters is just a single mongoclass.
                 - A `InsertManyResult` if the provided `mongoclasses` parameter is a list of mongoclasses
             """
-
             insert_one = kwargs.pop("insert_one", False)
             if not isinstance(mongoclasses, list):
                 return mongoclasses.insert(*args, **kwargs)
@@ -1327,7 +1257,7 @@ email='john@gmail.com', phone=8771, country='PH')
             if kwargs.get("ordered"):
                 return insert_result
 
-            for mongoclass, inserted in zip(mongoclasses, insert_result.inserted_ids):
+            for mongoclass, inserted in zip(mongoclasses, insert_result.inserted_ids, strict=True):
                 mongoclass._mongodb_id = inserted
 
             return insert_result
@@ -1337,8 +1267,12 @@ email='john@gmail.com', phone=8771, country='PH')
     return MongoClassClientClass(*args, **kwargs)
 
 
-def MongoClassClient(*args, **kwargs) -> SupportsMongoClassClient | (MongoClient | pymongo.database.Database):
-    """
+def MongoClassClient(  # noqa: N802
+        *args,
+        **kwargs
+) -> SupportsMongoClassClient | (MongoClient | pymongo.database.Database):
+    """Mongo Class CLient.
+
     Examples:
         >>> from mongodata import MongoClassClient
         >>> MongoClassClient("test", "mongodb://localhost:27017")
