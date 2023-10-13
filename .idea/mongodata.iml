@@ -7,8 +7,11 @@
       <excludeFolder url="file://$MODULE_DIR$/.idea/httpRequests" />
       <excludeFolder url="file://$MODULE_DIR$/.ruff_cache" />
       <excludeFolder url="file://$MODULE_DIR$/venv" />
+      <excludeFolder url="file://$MODULE_DIR$/.pytest_cache" />
+      <excludeFolder url="file://$MODULE_DIR$/docs/_build" />
+      <excludeFolder url="file://$MODULE_DIR$/mongita" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.10 (mongodata)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.11 (mongodata)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">
